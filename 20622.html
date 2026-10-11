@@ -566,7 +566,7 @@ async function moveLocalPhotos() {
 
 let state = loadState();
 let sim = null;
-try { localStorage.removeItem(SIM_KEY); } catch (e) {}
+try { sim = localStorage.getItem(SIM_KEY) || null; } catch (e) {}   // [임시] 테스트용 시각 — 확인 끝나면 시간 확인 칸과 함께 지우기
 const now = () => sim ? new Date(sim) : new Date();
 
 function flat() {
@@ -967,9 +967,25 @@ function renderSchedule() {
     html += `</section>`;
   });
 
+  /* [임시] 시간 확인 칸 — 확인 끝나면 지우기 */
+  html += `<section class="card settings" style="margin-top:24px">
+    <h2>⚙️ 시간 확인 <small style="font-weight:600;color:var(--muted)">(임시)</small></h2>
+    <label>테스트용 현재 시각 (여행 전에 화면 미리보기용)
+      <input type="datetime-local" id="sim" value="${sim ? esc(sim) : ''}"></label>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn ghost" data-act="sim-clear">실제 시각 사용</button>
+    </div>
+    <p class="hint">${sim ? '⚠️ 지금은 테스트 시각으로 보고 있어요.<br>' : ''}이 기기 화면에만 적용돼요. 서버 푸시 알림은 실제 시각 기준이에요.</p>
+  </section>`;
+
   const root = $('#view-schedule');
   root.innerHTML = html;
   fillLegs(root);
+  $('#sim').addEventListener('change', e => {
+    sim = e.target.value || null;
+    try { sim ? localStorage.setItem(SIM_KEY, sim) : localStorage.removeItem(SIM_KEY); } catch (er) {}
+    renderSchedule();
+  });
 
   if (!scrolledOnce) {
     scrolledOnce = true;
