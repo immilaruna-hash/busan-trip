@@ -1231,7 +1231,7 @@ function showAlarm(ev, lead, isTest) {
   try { navigator.vibrate && navigator.vibrate([400, 200, 400, 200, 600]); } catch (e) {}
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('🚩 ' + head.replace('🔔 ', ''), { body: `${ev.place} · ${hm(ev.when)}`, tag: 'meet-' + ev.id, requireInteraction: true, silent: true });
+      new Notification('🚩 ' + head.replace('🔔 ', ''), { body: `${ev.place} · ${hm(ev.when)}`, tag: 'meet-' + ev.id, requireInteraction: true, renotify: true });   // 휴대폰 알림 소리로 울림
     }
   } catch (e) {}   // 안드로이드 크롬 등 페이지 알림을 지원하지 않는 브라우저는 무시
 }
