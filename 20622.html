@@ -1,0 +1,2065 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>부산 수학여행</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --sky:#0ea5e9; --sky-d:#0284c7; --sky-l:#e0f2fe; --sky-ll:#f0f9ff; --sky-m:#7dd3fc;
+    --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --grey:#f1f5f9; --danger:#ef4444; --warn:#d97706;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#fff;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;
+    -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+  button,input,textarea,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  a{color:var(--sky-d)}
+
+  /* 헤더 */
+  header{position:sticky;top:0;z-index:1000;background:rgba(255,255,255,.96);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top) + 12px) 16px 0}
+  .head-in{max-width:640px;margin:0 auto}
+  .brand{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.02em}
+  .brand b{color:var(--sky-d)}
+  h1{font-size:20px;margin:2px 0 8px;letter-spacing:-.02em}
+  .daytabs{display:flex;gap:6px;margin:2px 0 8px;scroll-margin-top:130px}
+  .dtab{flex:1;border:1px solid var(--line);background:#fff;border-radius:12px;padding:5px 4px;
+    font-size:15px;font-weight:800;color:var(--muted);line-height:1.25;text-align:center;position:relative}
+  .dtab small{display:block;font-size:11px;font-weight:600;opacity:.85}
+  .dtab.on{background:var(--sky);border-color:var(--sky);color:#fff}
+  .tabs{display:flex}
+  .tab{flex:1;border:0;background:none;padding:10px 0 12px;font-size:15px;font-weight:700;
+    color:var(--muted);border-bottom:3px solid transparent;transition:.15s}
+  .tab.on{color:var(--sky-d);border-color:var(--sky)}
+
+  main{max-width:640px;margin:0 auto;padding:12px 16px calc(110px + env(safe-area-inset-bottom))}
+  .hidden{display:none!important}
+
+  .card{border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-bottom:10px;background:#fff}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  h2{font-size:16px;margin:0}
+  .btn-s{border:1px solid var(--sky-m);background:var(--sky-ll);color:var(--sky-d);
+    border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700}
+
+  /* 현재 일정 카드 */
+  .now-card{background:linear-gradient(135deg,#0ea5e9,#38bdf8);color:#fff;border:0;
+    box-shadow:0 8px 24px rgba(14,165,233,.25)}
+  .now-card a{color:#fff;font-weight:700}
+  .nc-label{display:inline-block;background:rgba(255,255,255,.22);border-radius:999px;
+    padding:4px 10px;font-size:12px;font-weight:700}
+  .nc-title{font-size:22px;font-weight:800;margin:10px 0 4px;letter-spacing:-.02em;line-height:1.3}
+  .nc-sub{font-size:14px;opacity:.95}
+  .bar{height:6px;background:rgba(255,255,255,.3);border-radius:9px;margin:12px 0 6px;overflow:hidden}
+  .bar i{display:block;height:100%;background:#fff;border-radius:9px}
+  .nc-next{margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.35);font-size:14px}
+  .nc-next span.k{font-weight:800;margin-right:4px}
+  .nc-next em{font-style:normal;opacity:.85;margin-left:4px}
+  .nc-meet,.nc-leg{margin-top:8px;background:rgba(255,255,255,.18);border-radius:12px;padding:8px 10px;font-size:14px}
+  .btn-w{margin-top:10px;border:0;background:#fff;color:var(--sky-d);border-radius:999px;padding:8px 14px;font-size:13px;font-weight:800}
+
+  /* 이동 경로 결과 */
+  .route-box{margin-top:10px;font-size:14px;line-height:1.6;background:#fff;border:1px solid var(--sky-l);border-radius:12px;padding:8px 10px}
+  .now-card .route-box{background:rgba(255,255,255,.18);border:0}
+  .route-box small,.leg small{opacity:.8}
+  .rl{display:flex;gap:12px;flex-wrap:wrap;margin-top:2px;font-size:13px}
+  .rl a{font-weight:700;text-decoration:none}
+
+  /* 집합 공지 */
+  .meet{background:#FAFCFFD9;border:2.5px solid var(--sky-m)}   /* 집합 공지 칸 테두리 두껍게 */
+  .meet-place{font-size:18px;font-weight:800;margin-top:4px;color:var(--sky-d)}
+  .meet-place a{text-decoration:none}
+  .meet-time{font-size:15px;font-weight:600;margin-top:2px}
+  .meet-time small{color:var(--muted);font-weight:500;margin-left:4px}
+  .meet-note{font-size:14px;color:var(--ink);margin-top:2px;white-space:pre-wrap}
+  .meet-al{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:13px;font-weight:700;color:var(--muted)}
+  .meet-al .switch{padding:5px 11px;font-size:12.5px}
+  .meet-upd{font-size:12px;color:var(--muted);margin-top:8px}
+  .meet .btn-w{background:var(--sky);color:#fff}
+
+  /* 칩 */
+  .chips{display:flex;gap:8px;overflow-x:auto;margin:4px -16px 12px;padding:2px 16px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:none;border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;
+    font-size:14px;font-weight:700;color:var(--muted)}
+  .chip.on{background:var(--sky);border-color:var(--sky);color:#fff}
+
+  /* 일정 목록 */
+  .day{margin:4px 0 6px;scroll-margin-top:130px}
+  .day-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+  .day-head h2{font-size:18px}
+  .day-head small{color:var(--muted);font-weight:600;margin-left:6px;font-size:14px}
+  .add{border:0;background:none;color:var(--sky-d);font-weight:700;font-size:14px;padding:4px}
+  .item{display:flex;gap:12px;padding:10px 12px;border:1px solid rgba(125,211,252,.35);border-left:4px solid var(--sky-m);
+    border-radius:14px;margin-bottom:6px;background:#FAFCFFD9;scroll-margin-top:140px;transition:.2s}
+  .item .t{flex:none;width:50px;font-weight:800;font-size:15px;color:var(--sky-d);line-height:1.25}
+  .item .t span{display:block;font-size:12px;font-weight:600;color:var(--muted)}
+  .item .b{flex:1;min-width:0}
+  .item .ti{font-weight:700;font-size:15px;line-height:1.35}
+  .item .pl{display:inline-block;font-size:13px;color:var(--muted);margin-top:3px;text-decoration:none}
+  a.pl{color:var(--sky-d)}
+  .item .nt{font-size:13px;color:var(--ink);margin-top:3px;background:rgba(255,255,255,.7);border-radius:8px;padding:3px 8px}
+  .item .mt{display:inline-block;font-size:12px;font-weight:700;color:var(--sky-d);background:var(--sky-l);
+    border-radius:999px;padding:2px 9px;margin-top:4px}
+  .item .ed{flex:none;align-self:flex-start;border:0;background:none;color:var(--muted);font-size:13px;padding:2px 0 6px 6px}
+  .item.now{border-color:var(--sky);border-left-color:var(--sky);background:rgba(56,189,248,.28);
+    box-shadow:0 4px 14px rgba(14,165,233,.18)}
+  .item.now .ti::before{content:"진행 중";display:inline-block;font-size:11px;font-weight:800;color:#fff;
+    background:var(--sky);border-radius:999px;padding:2px 7px;margin-right:6px;vertical-align:2px}
+  /* 완료된 일정: 회색 + 투명도 */
+  .item.done{background:var(--grey);border-color:#e5e7eb;border-left-color:#cbd5e1;opacity:.5;filter:grayscale(1)}
+  .item.done .t,.item.done .t span{color:#64748b}
+
+  /* 이동 구간 */
+  .leg{margin:-1px 0 5px 24px;padding:2px 0 2px 12px;border-left:2px dashed var(--sky-m);font-size:12.5px;color:var(--muted);line-height:1.5}
+  .leg b{color:var(--sky-d)}
+  .leg a{font-weight:700;text-decoration:none;margin-left:6px;white-space:nowrap}
+  .leg.done{opacity:.5;filter:grayscale(1)}
+
+  .settings label{display:block;font-size:13px;color:var(--muted);font-weight:600;margin-top:10px}
+  .hint{font-size:12px;color:var(--muted);margin:10px 0 0;line-height:1.5}
+
+  /* 지도 탭 */
+  #map{height:64vh;min-height:360px;border-radius:16px;overflow:hidden;background:var(--grey);z-index:1}
+  /* 지도 위 이동 시간 라벨 */
+  .leaflet-tooltip.tt-time{background:#fff;border:1.5px solid var(--sky);color:var(--sky-d);font-weight:800;font-size:11.5px;
+    border-radius:999px;padding:1px 6px;box-shadow:0 2px 6px rgba(15,23,42,.18);white-space:nowrap}
+  .leaflet-tooltip.tt-time::before{display:none}
+  .leaflet-tooltip.tt-time.dim{border-color:#cbd5e1;color:#64748b;opacity:.75}
+  .map-card{padding:8px;position:relative}
+  .map-tools{position:absolute;right:18px;bottom:18px;z-index:500}
+  .map-msg{display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;text-align:center;padding:20px}
+  .pin{width:30px;height:30px;border-radius:50%;background:var(--sky);color:#fff;font-weight:800;font-size:13px;
+    display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+  .pin.done{background:#94a3b8}
+  .pin.now{background:#0369a1;box-shadow:0 0 0 6px rgba(14,165,233,.35)}
+  .me{width:18px;height:18px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 6px rgba(37,99,235,.25)}
+  .stop{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;margin-bottom:8px;background:#fff;cursor:pointer}
+  .stop .num{flex:none;width:28px;height:28px;border-radius:50%;background:var(--sky);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+  .stop .b{flex:1;min-width:0}
+  .stop .ti{font-weight:700;font-size:14px;line-height:1.35}
+  .stop .pl{font-size:12px;color:var(--muted);margin-top:2px}
+  .stop .go{flex:none;font-size:13px;font-weight:700;text-decoration:none}
+  .stop.now{border-color:var(--sky);background:var(--sky-ll)}
+  .stop.done{background:var(--grey);opacity:.5;filter:grayscale(1)}
+  .stop.done .num{background:#94a3b8}
+  .leaflet-popup-content{font-family:inherit;font-size:13px;line-height:1.5}
+
+  /* 사진첩 */
+  .up-card{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .up-card p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+  .grp{margin:18px 0 6px}
+  .grp-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .grp-h b{font-size:15px}
+  .grp-h span{font-size:12px;color:var(--muted)}
+  .grp-day{display:inline-block;font-size:11px;font-weight:800;color:var(--sky-d);background:var(--sky-l);
+    border-radius:999px;padding:2px 8px}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 8px;margin-top:8px}
+  @media (min-width:560px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .pcard{display:flex;flex-direction:column;gap:3px;border:0;background:none;padding:0;text-align:left;min-width:0;color:var(--ink)}
+  .pcard .ph{display:block;width:100%}
+  .pdate{font-size:12px;font-weight:700;color:var(--sky-d);margin-top:3px}
+  .ploc{font-size:12px;color:var(--muted);line-height:1.35;word-break:keep-all;overflow-wrap:anywhere}
+  .pcap{font-size:13px;line-height:1.45;color:var(--ink);white-space:pre-wrap;word-break:break-word;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .ph{position:relative;border:0;padding:0;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--grey)}
+  .ph img{width:100%;height:100%;object-fit:cover;display:block}
+  .ph span{position:absolute;left:4px;bottom:4px;font-size:11px;font-weight:700;color:#fff;
+    background:rgba(15,23,42,.55);border-radius:6px;padding:1px 5px}
+  .ph i{position:absolute;right:4px;top:4px;font-style:normal;font-size:10px;color:#fff;background:var(--sky);
+    border-radius:6px;padding:1px 5px}
+  .empty{text-align:center;color:var(--muted);padding:40px 10px;font-size:14px;line-height:1.6}
+  .empty b{display:block;font-size:40px;margin-bottom:6px}
+
+  .fab{position:fixed;right:max(16px,calc(50% - 304px));bottom:calc(20px + env(safe-area-inset-bottom));z-index:900;
+    background:var(--sky);color:#fff;border:0;border-radius:999px;padding:15px 20px;font-size:15px;font-weight:800;
+    box-shadow:0 8px 22px rgba(14,165,233,.4)}
+
+  /* 모달 */
+  .modal{position:fixed;inset:0;z-index:2000;background:rgba(15,23,42,.45);display:flex;align-items:flex-end;justify-content:center}
+  .sheet{background:#fff;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;border-radius:22px 22px 0 0;
+    padding:20px 16px calc(20px + env(safe-area-inset-bottom))}
+  @media (min-width:700px){.modal{align-items:center}.sheet{border-radius:22px}}
+  .sheet h3{margin:0 0 12px;font-size:18px}
+  .sheet label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:12px}
+  .sheet label small{font-weight:500}
+  .sheet input,.sheet textarea,.sheet select,.settings input{display:block;width:100%;margin-top:5px;border:1px solid var(--line);
+    border-radius:12px;padding:11px 12px;font-size:16px;color:var(--ink);background:#fff;-webkit-appearance:none;appearance:none;min-height:46px}
+  .sheet input:focus,.sheet textarea:focus,.sheet select:focus,.settings input:focus{outline:2px solid var(--sky-m);border-color:var(--sky)}
+  .pick{height:200px;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-top:-4px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .actions{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
+  .sp{flex:1}
+  .btn{border:0;border-radius:12px;padding:11px 16px;font-size:15px;font-weight:700;text-decoration:none;display:inline-block}
+  .btn.primary{background:var(--sky);color:#fff}
+  .btn.ghost{background:var(--grey);color:var(--ink)}
+  .btn.danger{background:#fef2f2;color:var(--danger)}
+  .big{display:block;width:100%;max-height:55vh;object-fit:contain;border-radius:14px;background:var(--grey);margin-bottom:12px}
+  .auto{font-size:13px;color:var(--sky-d);background:var(--sky-ll);border-radius:10px;padding:8px 10px;margin-bottom:12px}
+  .auto a{font-weight:700}
+
+  .stop.flash{box-shadow:0 0 0 3px var(--sky-m)}
+
+  /* 글 · 댓글 */
+  .ph b.cb{position:absolute;right:4px;bottom:4px;font-size:10.5px;font-weight:700;color:#fff;
+    background:rgba(2,132,199,.85);border-radius:6px;padding:1px 5px}
+  .up-list{display:flex;flex-direction:column;gap:10px}
+  .up-item{display:flex;gap:10px;align-items:flex-start;position:relative}
+  .up-rm{flex:none;border:0;background:var(--grey);color:var(--muted);border-radius:999px;width:28px;height:28px;font-size:13px;font-weight:800;padding:0}
+  .up-actions .btn{padding:10px 12px}
+  .up-actions{position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom));z-index:2;background:#fff;
+    margin:12px -16px calc(-20px - env(safe-area-inset-bottom));padding:10px 16px calc(14px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--line)}   /* 사진이 많아도 '모두 올리기' 버튼이 항상 아래에 보이게 */
+  .up-item img{width:76px;height:76px;object-fit:cover;border-radius:10px;flex:none;background:var(--grey)}
+  .up-item .b{flex:1;min-width:0}
+  .up-meta{font-size:12px;color:var(--muted);font-weight:600;line-height:1.4}
+  .up-item textarea{display:block;width:100%;margin-top:5px;border:1px solid var(--line);border-radius:12px;
+    padding:9px 11px;font-size:16px;resize:vertical}
+  .cap{font-size:15px;line-height:1.55;white-space:pre-wrap;background:var(--sky-ll);border-radius:12px;padding:10px 12px;margin-bottom:12px}
+
+  /* 사진첩 버튼 · 스티커 */
+  .album-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .stk-strip{display:flex;gap:8px;overflow-x:auto;margin-top:10px;padding-bottom:4px}
+  .stk{flex:none;width:72px;height:72px;border:1px solid var(--line);border-radius:14px;padding:6px;
+    background:conic-gradient(#eef2f7 25%,#fff 0 50%,#eef2f7 0 75%,#fff 0) 0 0/14px 14px}
+  .stk img{width:100%;height:100%;object-fit:contain;display:block}
+  .pick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:10px}
+  .pick-grid button{border:0;padding:0;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--grey)}
+  .pick-grid img{width:100%;height:100%;object-fit:cover;display:block}
+  .checker{background:conic-gradient(#e2e8f0 25%,#fff 0 50%,#e2e8f0 0 75%,#fff 0) 0 0/20px 20px}
+
+  /* 꾸미기 · 스티커 편집기 */
+  .editor{position:fixed;inset:0;z-index:2500;background:#fff;display:flex;flex-direction:column}
+  .ed-top{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;border-bottom:1px solid var(--line)}
+  .ed-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px;background:var(--grey);overflow:hidden}
+  #ed-canvas{touch-action:none;border-radius:8px;box-shadow:0 2px 10px rgba(15,23,42,.12);display:block}
+  .ed-panel{padding:10px 12px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);max-height:44vh;overflow-y:auto}
+  .tools{display:flex;gap:6px;flex-wrap:wrap}
+  .tool{border:1px solid var(--line);background:#fff;border-radius:12px;padding:8px 10px;font-size:13px;font-weight:700;color:var(--ink)}
+  .tool.on{background:var(--sky);color:#fff;border-color:var(--sky)}
+  .tool.ai{border-color:var(--sky-m);color:var(--sky-d);background:var(--sky-ll)}
+  .ed-panel label.sl{font-size:12px;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px;margin-top:10px}
+  .ed-panel label.sl input[type=range]{flex:1;accent-color:var(--sky)}
+  .ed-panel input[type=text]{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:16px;margin-top:8px}
+  .colors{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .sw{width:30px;height:30px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #cbd5e1;padding:0}
+  .sw.on{box-shadow:0 0 0 3px var(--sky)}
+  .emojis{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+  .emojis button{border:0;background:var(--grey);border-radius:10px;font-size:24px;width:44px;height:44px;padding:0}
+  .ed-msg{font-size:12.5px;color:var(--muted);margin:10px 0 0;line-height:1.5}
+
+  /* 집합 알림 */
+  .switch{border:0;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:800;background:var(--grey);color:var(--muted)}
+  .switch.on{background:var(--sky);color:#fff}
+  .lead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--muted);font-weight:600}
+  .chip.sm{padding:6px 11px;font-size:13px}
+  .next-alert{margin-top:10px;font-size:14px;background:var(--sky-ll);border-radius:12px;padding:9px 11px;line-height:1.5}
+  .next-alert b{color:var(--sky-d)}
+  .btn.sm{padding:9px 12px;font-size:13px}
+  .alarm{position:fixed;inset:0;z-index:4000;background:linear-gradient(160deg,#0284c7,#38bdf8);color:#fff;
+    display:flex;align-items:center;justify-content:center;padding:24px;text-align:center}
+  .alarm-in{max-width:420px;width:100%}
+  .al-big{font-size:64px;animation:ring 1s ease-in-out infinite}
+  @keyframes ring{0%,100%{transform:rotate(0)}25%{transform:rotate(-12deg)}75%{transform:rotate(12deg)}}
+  .al-k{font-size:26px;font-weight:900;margin-top:6px}
+  .al-place{font-size:30px;font-weight:900;margin-top:18px;line-height:1.25}
+  .al-time{font-size:18px;font-weight:700;margin-top:6px;opacity:.95}
+  .al-note{font-size:15px;margin-top:12px;background:rgba(255,255,255,.18);border-radius:12px;padding:10px;white-space:pre-wrap}
+  .al-btns{display:flex;flex-direction:column;gap:10px;margin-top:26px}
+  .al-btns .btn{background:#fff;color:var(--sky-d);font-size:17px;padding:15px}
+  .al-btns a.btn{background:rgba(255,255,255,.2);color:#fff}
+
+  .ask{position:fixed;inset:0;z-index:5000;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+  .ask-box{background:#fff;border-radius:18px;width:100%;max-width:420px;padding:18px 16px 14px;box-shadow:0 12px 40px rgba(15,23,42,.25)}
+  .ask-msg{margin:0 0 14px;font-size:15px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:var(--ink)}
+
+  #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 120px);transform:translateX(-50%);z-index:3000;
+    background:var(--ink);color:#fff;border-radius:999px;padding:10px 16px;font-size:14px;font-weight:600;
+    max-width:calc(100% - 32px);text-align:center;transition:opacity .2s;pointer-events:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="head-in">
+    <div class="brand">둔촌고등학교 <b>B팀</b> · 10.12(월) – 10.14(수)</div>
+    <h1>부산 수학여행 🌊</h1>
+    <nav class="tabs">
+      <button class="tab on" data-tab="schedule">🗓️ 일정표</button>
+      <button class="tab" data-tab="map">🗺️ 지도</button>
+      <button class="tab" data-tab="album">📷 사진첩</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div id="view-schedule"></div>
+  <div id="view-map" class="hidden">
+    <div class="chips" id="map-chips"></div>
+    <section class="card map-card">
+      <div id="map"></div>
+      <div class="map-tools"><button class="btn-s" data-act="locate" style="background:#fff">📍 내 위치</button></div>
+    </section>
+    <p class="hint" id="map-note" style="margin:-4px 2px 10px">실제 지도 위에 그날의 이동 경로를 파란 선으로 그렸어요. 선 위의 🚌 시간은 차로 걸리는 시간이고, 번호 핀을 누르면 일정 시간과 사진 수가 나와요.</p>
+    <div id="map-me"></div>
+    <div id="stops"></div>
+  </div>
+  <div id="view-album" class="hidden"></div>
+</main>
+
+<button class="fab hidden" id="fab">＋ 사진 올리기</button>
+<input type="file" id="file" accept="image/*" multiple hidden>
+<input type="file" id="cam" accept="image/*" capture="environment" hidden>
+<input type="file" id="stk-file" accept="image/*" hidden>
+<div id="editor" class="editor hidden">
+  <div class="ed-top">
+    <button class="btn ghost sm" id="ed-cancel">닫기</button>
+    <b id="ed-title"></b>
+    <button class="btn primary sm" id="ed-save">저장</button>
+  </div>
+  <div class="ed-stage" id="ed-stage"><canvas id="ed-canvas"></canvas></div>
+  <div class="ed-panel" id="ed-panel"></div>
+</div>
+<div id="modal" class="modal hidden"><div class="sheet" id="sheet"></div></div>
+<div id="alarm" class="alarm hidden"><div class="alarm-in" id="alarm-in"></div></div>
+<div id="toast" style="opacity:0"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/full.umd.js"></script>
+<script>
+/* ================= 장소 좌표 ================= */
+const PLACES = {
+  suseo:    { name:'수서역',                          lat:37.485544,  lng:127.10438 },
+  busan:    { name:'부산역',                          lat:35.114495,  lng:129.03933 },
+  gaemi:    { name:'개미집 광복동본점',                lat:35.1008119, lng:129.0301346 },
+  gwangan:  { name:'광안리해수욕장',                   lat:35.1531696, lng:129.118666 },
+  yacht:    { name:'광안리요트투어 (수영만요트경기장)',  lat:35.1581498, lng:129.1407435 },
+  songjeong:{ name:'해변열차 송정정거장',              lat:35.1808823, lng:129.2002747 },
+  mipo:     { name:'해변열차 미포정거장',              lat:35.158284,  lng:129.1727672 },
+  qoo:      { name:'쿠우쿠우 광복점',                  lat:35.0984518, lng:129.0315911 },
+  songdo:   { name:'송도해수욕장',                     lat:35.0754546, lng:129.016761 },
+  hotel:    { name:'라발스 호텔',                      lat:35.094683,  lng:129.0391374 },
+  luge:     { name:'스카이라인루지 부산',              lat:35.1940567, lng:129.2186386 },
+  yonggung: { name:'해동용궁사',                       lat:35.1884543, lng:129.2231109 },
+  lotte:    { name:'롯데월드 어드벤처 부산',           lat:35.1962445, lng:129.2149376 },
+  houn:     { name:'고깃집 호운정',                    lat:35.191508,  lng:129.217349 },
+  gamcheon: { name:'감천문화마을',                     lat:35.0973935, lng:129.0105921 },
+  arte:     { name:'아르떼뮤지엄 부산',                lat:35.0870682, lng:129.076373 },
+  gukje:    { name:'국제시장',                         lat:35.1013575, lng:129.0281978 },
+  biff:     { name:'BIFF광장',                         lat:35.098243,  lng:129.029212 }
+};
+const P = (k, k2) => ({ lat: PLACES[k].lat, lng: PLACES[k].lng, ...(k2 ? { lat2: PLACES[k2].lat, lng2: PLACES[k2].lng } : {}) });
+
+/* ================= 기본 일정 데이터 ================= */
+const DEFAULT_STATE = {
+  meet: { place: '수서역', time: '2026-10-12T08:00', note: '08:00 집결 → 인원점검 후 SRT 탑승 (09:20 출발)', updatedAt: null, ...P('suseo') },
+  days: [
+    { date: '2026-10-12', items: [
+      { id:'d1a', start:'08:00', end:'09:20', title:'수서역 집결 및 인원점검 후 탑승', place:'수서역', meetPlace:'수서역', meetTime:'08:00', note:'', ...P('suseo') },
+      { id:'d1b', start:'09:20', end:'12:01', title:'🚄 수서역 출발 → 부산역 도착', place:'열차 (수서 → 부산)', meetPlace:'', meetTime:'', note:'부산역 도착 후 전용차량으로 이동', mode:'train', ...P('suseo','busan') },
+      { id:'d1c', start:'12:30', end:'13:30', title:'중식 · 개미집 광복동본점', place:'개미집 광복동본점', meetPlace:'', meetTime:'', note:'낙곱새 전골', ...P('gaemi') },
+      { id:'d1d', start:'15:00', end:'16:30', title:'광안리해수욕장 요트투어', place:'광안리해수욕장 선착장', meetPlace:'', meetTime:'', note:'', ...P('gwangan') },
+      { id:'d1e', start:'17:00', end:'18:00', title:'해운대해변열차', place:'해운대해변열차 (송정역 → 미포역)', meetPlace:'송정역', meetTime:'17:00', note:'송정역 17:00(90명) / 17:12(33명) → 미포역', ...P('songjeong','mipo') },
+      { id:'d1f', start:'19:00', end:'20:00', title:'석식 · 쿠우쿠우 광복점', place:'쿠우쿠우 광복점', meetPlace:'', meetTime:'', note:'디너 뷔페', ...P('qoo') },
+      { id:'d1g', start:'20:20', end:'21:00', title:'송도해수욕장 야경관람', place:'송도해수욕장', meetPlace:'', meetTime:'', note:'', ...P('songdo') },
+      { id:'d1h', start:'21:00', end:'21:30', title:'숙소 도착 · 안전교육 · 객실배정', place:'라발스 호텔', meetPlace:'', meetTime:'', note:'', ...P('hotel') },
+      { id:'d1i', start:'21:30', end:'23:59', title:'휴식 및 취침', place:'라발스 호텔', meetPlace:'', meetTime:'', note:'', ...P('hotel') }
+    ]},
+    { date: '2026-10-13', items: [
+      { id:'d2a', start:'07:00', end:'09:00', title:'기상 및 조식', place:'라발스 호텔', meetPlace:'', meetTime:'', note:'조식: 숙소식', ...P('hotel') },
+      { id:'d2b', start:'10:00', end:'11:30', title:'스카이라인루지 부산', place:'스카이라인루지 부산', meetPlace:'', meetTime:'', note:'2회 탑승 기준', ...P('luge') },
+      { id:'d2c', start:'11:30', end:'12:30', title:'해동용궁사', place:'해동용궁사', meetPlace:'', meetTime:'', note:'', ...P('yonggung') },
+      { id:'d2d', start:'12:30', end:'18:00', title:'롯데월드 어드벤처 부산', place:'롯데월드 어드벤처 부산', meetPlace:'', meetTime:'', note:'중식 자유식 (식비 2만원 제공 기준)', ...P('lotte') },
+      { id:'d2e', start:'18:00', end:'19:00', title:'석식 · 고깃집 호운정', place:'고깃집 호운정', meetPlace:'', meetTime:'', note:'무제한 삼겹살구이', ...P('houn') },
+      { id:'d2f', start:'20:00', end:'22:00', title:'★ 레크레이션 및 장기자랑 ★', place:'라발스 호텔', meetPlace:'', meetTime:'', note:'', ...P('hotel') },
+      { id:'d2g', start:'22:00', end:'23:59', title:'휴식 및 취침', place:'라발스 호텔', meetPlace:'', meetTime:'', note:'', ...P('hotel') }
+    ]},
+    { date: '2026-10-14', items: [
+      { id:'d3a', start:'07:00', end:'08:30', title:'기상 및 조식', place:'라발스 호텔', meetPlace:'', meetTime:'', note:'조식: 숙소식', ...P('hotel') },
+      { id:'d3b', start:'09:00', end:'10:00', title:'감천문화마을', place:'감천문화마을', meetPlace:'', meetTime:'', note:'', ...P('gamcheon') },
+      { id:'d3c', start:'10:30', end:'11:30', title:'아르떼뮤지엄', place:'아르떼뮤지엄', meetPlace:'', meetTime:'', note:'', ...P('arte') },
+      { id:'d3d', start:'12:00', end:'13:30', title:'국제시장 · BIFF거리', place:'국제시장 · BIFF거리', meetPlace:'', meetTime:'', note:'중식 자유식 (예: 돼지국밥, 부산밀면) · 식비 1만5천원 제공', ...P('gukje','biff') },
+      { id:'d3e', start:'13:30', end:'14:00', title:'부산역으로 이동', place:'부산역', meetPlace:'', meetTime:'', note:'', ...P('busan') },
+      { id:'d3f', start:'15:28', end:'17:53', title:'🚄 부산역 출발 → 수서역 도착', place:'열차 (부산 → 수서)', meetPlace:'부산역', meetTime:'15:28', note:'', mode:'train', ...P('busan','suseo') },
+      { id:'d3g', start:'17:53', end:'18:20', title:'인원점검 후 개별해산', place:'수서역', meetPlace:'수서역', meetTime:'17:53', note:'', ...P('suseo') }
+    ]}
+  ]
+};
+
+/* ================= 유틸 ================= */
+const KEY = 'busan-trip-schedule-v2', SIM_KEY = 'busan-trip-sim-v1', ROUTE_KEY = 'busan-trip-routes-v1';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const hm = d => pad(d.getHours()) + ':' + pad(d.getMinutes());
+const WD = '일월화수목금토';
+const mdw = d => `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`;
+const at = (date, t) => new Date(`${date}T${t}:00`);
+const localInput = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${hm(d)}`;
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const clone = o => JSON.parse(JSON.stringify(o));
+const num = v => (v === '' || v == null || isNaN(+v)) ? null : +v;
+
+function fmtDur(ms) {
+  const m = Math.max(0, Math.round(ms / 60000));
+  if (m >= 1440) return Math.floor(m / 1440) + '일 ' + (Math.floor((m % 1440) / 60) ? Math.floor((m % 1440) / 60) + '시간' : '');
+  if (m >= 60) return Math.floor(m / 60) + '시간' + (m % 60 ? ' ' + (m % 60) + '분' : '');
+  return m + '분';
+}
+function hav(a, b) {
+  const R = 6371, r = x => x * Math.PI / 180;
+  const dLa = r(b[0] - a[0]), dLo = r(b[1] - a[1]);
+  const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(dLo / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+/* 일정의 시작 좌표 / 끝 좌표 */
+const startLL = it => it.lat != null ? [it.lat, it.lng] : null;
+const endLL = it => it.lat2 != null ? [it.lat2, it.lng2] : startLL(it);
+
+/* 네이버 지도 링크 — 네이버 공식 앱 URL 스킴(nmap://place, nmap://route/...) 사용
+   · 휴대폰: 네이버 지도 앱이 열려요 (앱이 없으면 스토어로 이동)
+   · PC: 앱 링크가 안 되므로 장소 이름으로 네이버 지도 웹 검색을 열어요 */
+const UA = navigator.userAgent || '';
+const IS_AND = /Android/i.test(UA);
+const IS_IOS = /iPhone|iPad|iPod/i.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const NT = (IS_AND || IS_IOS) ? 'data-nv="1"' : 'target="_blank" rel="noopener"';
+const NAVER_APP = (() => { try { return location.hostname || 'busan-trip'; } catch (e) { return 'busan-trip'; } })();
+const kn = s => encodeURIComponent(String(s).replace(/[,/]/g, ' ').trim() || '위치');
+function nHref(path, q, webName) {
+  const qs = Object.entries(q).map(([k, v]) => `${k}=${v}`).join('&') + `&appname=${encodeURIComponent(NAVER_APP)}`;
+  if (IS_AND) return `intent://${path}?${qs}#Intent;scheme=nmap;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end`;
+  if (IS_IOS) return `nmap://${path}?${qs}`;
+  return `https://map.naver.com/p/search/${kn(webName)}`;
+}
+const nMap = (name, ll) => nHref('place', { lat: ll[0], lng: ll[1], name: kn(name) }, name);
+const nTo = (name, ll) => nHref('route/car', { dlat: ll[0], dlng: ll[1], dname: kn(name) }, name);
+const nBy = (mode, n1, a, n2, b) => nHref('route/' + (mode === 'traffic' ? 'public' : mode),
+  { slat: a[0], slng: a[1], sname: kn(n1), dlat: b[0], dlng: b[1], dname: kn(n2) }, n2);
+
+function loadState() {
+  try {
+    const s = localStorage.getItem(KEY);
+    if (s) {
+      const st = JSON.parse(s);
+      // 실수로 지웠던 '수서역 집결 및 인원점검 후 탑승' 일정을 한 번만 되살림
+      if (!localStorage.getItem('busan-trip-d1a-restored')) {
+        const d1 = st.days.find(d => d.date === '2026-10-12');
+        if (d1 && !d1.items.some(it => it.id === 'd1a')) {
+          d1.items.unshift(clone(DEFAULT_STATE.days[0].items.find(it => it.id === 'd1a')));
+          d1.items.sort((a, b) => a.start.localeCompare(b.start));
+          localStorage.setItem(KEY, JSON.stringify(st));
+        }
+        localStorage.setItem('busan-trip-d1a-restored', '1');
+      }
+      return st;
+    }
+  } catch (e) {}
+  return clone(DEFAULT_STATE);
+}
+function saveState() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+let state = loadState();
+let sim = null;
+try { localStorage.removeItem(SIM_KEY); } catch (e) {}
+const now = () => sim ? new Date(sim) : new Date();
+
+function flat() {
+  return state.days.flatMap((d, di) => d.items.map(it => ({
+    ...it, date: d.date, day: di + 1, s: at(d.date, it.start), e: at(d.date, it.end)
+  }))).sort((a, b) => a.s - b.s);
+}
+const statusOf = (it, n) => n >= it.e ? 'done' : (n >= it.s ? 'now' : 'next');
+
+function toast(msg, stay) {
+  const t = $('#toast'); t.textContent = msg; t.style.opacity = 1;
+  clearTimeout(toast._t); if (!stay) toast._t = setTimeout(() => t.style.opacity = 0, 2400);
+}
+
+/* ================= 이동 시간 계산 (OSRM) ================= */
+let RC = {};
+try { RC = JSON.parse(localStorage.getItem(ROUTE_KEY) || '{}'); } catch (e) {}
+const inflight = {};
+let routeQueue = Promise.resolve();
+const LEGMETA = {};
+
+const rkey = (a, b, p) => `${p}:${a[0].toFixed(4)},${a[1].toFixed(4)}>${b[0].toFixed(4)},${b[1].toFixed(4)}`;
+
+/* 일정 구간별 자동차 이동 시간 (OSRM 도로 경로로 미리 계산: 2026-10-10)
+   [출발 위도, 출발 경도, 도착 위도, 도착 경도, 걸리는 시간(초), 거리(m)] */
+const PRESET_ROUTES = [
+  [35.114495, 129.03933, 35.1008119, 129.0301346, 175.3, 2222],      // 부산역 → 개미집 광복동본점
+  [35.1008119, 129.0301346, 35.1531696, 129.118666, 816.6, 11845.3], // 개미집 → 광안리해수욕장
+  [35.1531696, 129.118666, 35.1808823, 129.2002747, 693.5, 9888.3],  // 광안리 → 해변열차 송정정거장
+  [35.1808823, 129.2002747, 35.158284, 129.1727672, 468.1, 5412.3],  // 송정 → 미포
+  [35.158284, 129.1727672, 35.0984518, 129.0315911, 1269.8, 20493.5],// 미포 → 쿠우쿠우 광복점
+  [35.0984518, 129.0315911, 35.0754546, 129.016761, 289.2, 3793.9],  // 쿠우쿠우 → 송도해수욕장
+  [35.0754546, 129.016761, 35.094683, 129.0391374, 361.7, 4230.2],   // 송도 → 라발스 호텔
+  [35.094683, 129.0391374, 35.1940567, 129.2186386, 1440.1, 25047.1],// 호텔 → 스카이라인루지
+  [35.1940567, 129.2186386, 35.1884543, 129.2231109, 191.6, 1331.1], // 루지 → 해동용궁사
+  [35.1884543, 129.2231109, 35.1962445, 129.2149376, 310.8, 1891.1], // 용궁사 → 롯데월드
+  [35.1962445, 129.2149376, 35.191508, 129.217349, 192.2, 971.9],    // 롯데월드 → 호운정
+  [35.191508, 129.217349, 35.094683, 129.0391374, 1416.3, 23703.6],  // 호운정 → 호텔
+  [35.094683, 129.0391374, 35.0973935, 129.0105921, 326, 4193.6],    // 호텔 → 감천문화마을
+  [35.0973935, 129.0105921, 35.0870682, 129.076373, 678.4, 8429.1],  // 감천 → 아르떼뮤지엄
+  [35.0870682, 129.076373, 35.1013575, 129.0281978, 525.9, 6640],    // 아르떼 → 국제시장
+  [35.1013575, 129.0281978, 35.098243, 129.029212, 59, 507.6],       // 국제시장 → BIFF광장
+  [35.098243, 129.029212, 35.114495, 129.03933, 255.9, 3264.4]       // BIFF → 부산역
+];
+for (const k in RC) if (RC[k] && RC[k].est) delete RC[k];   // 예전에 저장된 직선거리 추정값은 버림
+PRESET_ROUTES.forEach(([a0, a1, b0, b1, sec, m]) => {
+  const key = rkey([a0, a1], [b0, b1], 'car');
+  if (!RC[key]) RC[key] = { min: Math.max(1, Math.round(sec / 60)), km: m / 1000, geo: null };
+});
+async function fetchRoute(a, b, profile) {
+  const base = profile === 'foot'
+    ? 'https://routing.openstreetmap.de/routed-foot/route/v1/driving/'
+    : 'https://router.project-osrm.org/route/v1/driving/';
+  const url = `${base}${a[1]},${a[0]};${b[1]},${b[0]}?overview=${profile === 'car' ? 'full' : 'false'}&geometries=geojson`;
+  try {
+    const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 9000);
+    const r = await fetch(url, { signal: ac.signal }); clearTimeout(t);
+    const j = await r.json();
+    if (j.code !== 'Ok' || !j.routes || !j.routes.length) throw new Error('no route');
+    const ro = j.routes[0];
+    const geo = ro.geometry && ro.geometry.coordinates ? ro.geometry.coordinates.map(c => [+c[1].toFixed(5), +c[0].toFixed(5)]) : null;
+    return { min: Math.max(1, Math.round(ro.duration / 60)), km: ro.distance / 1000, geo, est: false };
+  } catch (e) { return null; }   // 직선거리로 대신 계산하지 않음
+}
+function getRoute(a, b, profile, needGeo) {
+  const key = rkey(a, b, profile);
+  if (RC[key] && (!needGeo || RC[key].geo)) return Promise.resolve(RC[key]);
+  if (inflight[key]) return inflight[key];
+  const p = routeQueue = routeQueue.then(() => fetchRoute(a, b, profile)).then(r => {
+    delete inflight[key];
+    if (!r) return RC[key] || null;   // 못 불러오면 null (미리 구한 값이 있으면 그 값)
+    RC[key] = r;
+    try { localStorage.setItem(ROUTE_KEY, JSON.stringify(RC)); } catch (e) {}
+    return r;
+  });
+  inflight[key] = p;
+  return p;
+}
+function routeText(r, gap) {
+  if (!r) return '도로 경로를 불러오지 못했어요';
+  let s = `<b>약 ${fmtDur(r.min * 60000)}</b> · ${r.km.toFixed(1)}km`;
+  if (gap != null && !isNaN(gap) && gap > 0) s +=` <span class="gap">· 일정 간격 ${gap}분</span>`;
+  return s;
+}
+/* 같은 날 연속된 두 일정 사이의 이동 구간 */
+function legsOf(items) {
+  const legs = [];
+  for (let i = 1; i < items.length; i++) {
+    const prev = items[i - 1], cur = items[i];
+    if (prev.day !== cur.day) continue;
+    const a = endLL(prev), b = startLL(cur);
+    if (!a || !b || hav(a, b) < 0.2) continue;
+    const key = rkey(a, b, 'car');
+    LEGMETA[key] = { a, b };
+    legs.push({ key, a, b, from: prev, to: cur, gap: Math.round((cur.s - prev.e) / 60000) });
+  }
+  return legs;
+}
+function legHTML(leg, cls, noLink) {
+  const r = RC[leg.key];
+  const fromName = leg.from.mode === 'train' ? '부산역' : leg.from.place;
+  return `<div class="leg ${cls || ''} " data-k="${leg.key}" data-gap="${leg.gap}">
+    🚌 차로 <span class="lv">${r ? routeText(r, leg.gap) : '계산 중…'}</span>
+    ${noLink ? '' : `<a href="${nBy('car', fromName, leg.a, leg.to.place, leg.b)}" ${NT}>네이버지도 길찾기 ↗</a>`}</div>`;
+}
+function fillLegs(root) {
+  root.querySelectorAll('[data-k]').forEach(el => {
+    const m = LEGMETA[el.dataset.k]; if (!m || RC[el.dataset.k]) return;
+    getRoute(m.a, m.b, 'car').then(r => {
+      const gap = el.dataset.gap !== undefined ? +el.dataset.gap : null;
+      const lv = el.querySelector('.lv'); if (lv) lv.innerHTML = routeText(r, gap);
+    });
+  });
+}
+
+/* ================= 내 위치 ================= */
+let myPos = null, meetRoute = '', nowRoute = null;
+function getMyPos() {
+  return new Promise((res, rej) => {
+    if (!navigator.geolocation) return rej(new Error('이 브라우저는 위치 기능을 지원하지 않아요'));
+    navigator.geolocation.getCurrentPosition(
+      p => { myPos = [p.coords.latitude, p.coords.longitude]; res(myPos); },
+      e => rej(new Error(e.code === 1 ? '위치 권한을 허용해 주세요' : '위치를 찾지 못했어요')),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+  });
+}
+async function routeMe(target) {
+  const n = now();
+  let dest;
+  if (target === 'meet') {
+    const m = state.meet || {};
+    if (m.lat == null) return toast('집합 공지에 지도 위치를 먼저 정해 주세요');
+    dest = { name: m.place, ll: [m.lat, m.lng] };
+  } else {
+    const next = flat().find(i => i.s > n && i.lat != null);
+    if (!next) return toast('다음 장소 위치 정보가 없어요');
+    dest = { name: next.place, ll: startLL(next), id: next.id };
+  }
+  toast('내 위치 확인 중…', true);
+  try {
+    const me = await getMyPos();
+    const w = await getRoute(me, dest.ll, 'foot');
+    const c = await getRoute(me, dest.ll, 'car');
+    const html = `<div class="route-box">🚶 걸어서 ${routeText(w)}<br>🚕 차로 ${routeText(c)}</div>`;   // 일정표에서는 지도 사이트 링크 없음
+    if (target === 'meet') meetRoute = html; else nowRoute = { id: dest.id, html };
+    toast('이동 시간을 계산했어요');
+    renderSchedule();
+  } catch (e) { toast(e.message || '위치를 가져오지 못했어요'); }
+}
+
+/* ================= 확인 창 =================
+   브라우저 기본 confirm() 창은 미리보기·앱 안 브라우저 등에서 막혀서 '취소'로 처리될 수 있어
+   페이지 안에 직접 확인 창을 띄움 */
+function askConfirm(msg, okText = '확인', danger = false) {
+  return new Promise(res => {
+    const wrap = document.createElement('div');
+    wrap.className = 'ask';
+    wrap.innerHTML = `<div class="ask-box" role="dialog" aria-modal="true"><p class="ask-msg"></p>
+      <div class="actions"><span class="sp"></span>
+        <button type="button" class="btn ghost" data-v="0">취소</button>
+        <button type="button" class="btn ${danger ? 'danger' : 'primary'}" data-v="1"></button></div></div>`;
+    wrap.querySelector('.ask-msg').textContent = msg;
+    wrap.querySelector('[data-v="1"]').textContent = okText;
+    const done = v => { wrap.remove(); document.removeEventListener('keydown', onKey, true); res(v); };
+    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
+    wrap.addEventListener('click', e => {
+      e.stopPropagation();
+      const b = e.target.closest('[data-v]');
+      if (b) done(b.dataset.v === '1'); else if (e.target === wrap) done(false);
+    });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(wrap);
+    wrap.querySelector('[data-v="1"]').focus();
+  });
+}
+
+/* 저장 버튼 연결
+   앱 안 미리보기처럼 '폼 제출'이 막힌 화면에서는 submit 이벤트가 아예 안 생겨서
+   저장 버튼이 안 눌린 것처럼 보임 → 버튼 클릭으로 직접 저장 */
+function bindSave(form, handler) {
+  form.addEventListener('submit', e => e.preventDefault());
+  const btn = form.querySelector('[data-save]');
+  const run = () => {
+    if (form.reportValidity && !form.reportValidity()) return;   // 빈 칸 등은 여기서 알려줌
+    handler({ preventDefault() {}, target: form });
+  };
+  btn.addEventListener('click', run);
+  form.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !e.isComposing) { e.preventDefault(); run(); }
+  });
+}
+
+/* ================= 모달 ================= */
+let pickMap = null, modalLock = false;
+function openModal(html) { $('#sheet').innerHTML = html; $('#modal').classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+function closeModal() {
+  if (pickMap) { pickMap.remove(); pickMap = null; }
+  modalLock = false;
+  $('#modal').classList.add('hidden'); $('#sheet').innerHTML = ''; document.body.style.overflow = '';
+}
+$('#modal').addEventListener('click', e => {
+  if (e.target.id === 'modal' && modalLock) return;   // 올리기 중에는 바깥을 눌러도 닫히지 않음
+  if (e.target.id === 'modal' || e.target.dataset.act === 'close') closeModal();
+});
+
+/* 장소 이름으로 지도 위치 찾기: 1) 이미 아는 장소 목록 2) OpenStreetMap(Nominatim) 검색
+   Nominatim은 사람이 버튼/저장을 눌렀을 때만 한 번씩 부름 (자동완성처럼 계속 부르지 않음) */
+const normName = s => String(s || '').replace(/[\s·()（）\[\],.-]/g, '').toLowerCase();
+async function findPlace(q) {
+  const nq = normName(q);
+  if (!nq) return null;
+  for (const p of Object.values(PLACES)) {
+    const np = normName(p.name);
+    if (np === nq || nq.includes(np) || (nq.length >= 3 && np.includes(nq))) return { lat: p.lat, lng: p.lng, name: p.name };
+  }
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=kr&accept-language=ko'
+      + '&viewbox=128.75,35.40,129.35,34.95&q=' + encodeURIComponent(String(q).trim());
+    const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 8000);
+    const r = await fetch(url, { signal: ac.signal, headers: { 'Accept': 'application/json' } }); clearTimeout(t);
+    const j = await r.json();
+    if (Array.isArray(j) && j[0]) return { lat: +(+j[0].lat).toFixed(6), lng: +(+j[0].lon).toFixed(6), name: String(j[0].display_name || q).split(',')[0] };
+  } catch (e) {}
+  return null;
+}
+
+/* 지도 위치 고르기 (모달 안) */
+function keyOf(lat, lng) {
+  if (lat == null) return '';
+  for (const [k, p] of Object.entries(PLACES)) if (hav([lat, lng], [p.lat, p.lng]) < 0.03) return k;
+  return 'custom';
+}
+function pickerHTML(lat, lng) {
+  const key = keyOf(lat, lng);
+  return `<label>지도 위치 <small>· 지도 표시와 이동 시간 계산에 쓰여요</small>
+    <select name="loc" id="loc">
+      <option value="">위치 없음</option>
+      ${Object.entries(PLACES).map(([k, p]) => `<option value="${k}" ${k === key ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+      <option value="custom" ${key === 'custom' ? 'selected' : ''}>지도에서 직접 고른 위치</option>
+    </select></label>
+    <div class="actions" style="margin:-6px 0 8px"><button type="button" class="btn ghost sm" id="loc-find">🔎 장소 이름으로 위치 찾기</button></div>
+    <div id="pick" class="pick"></div>
+    <p class="hint" style="margin:6px 0 14px">지도를 누르면 그 자리로 위치가 바뀌어요.</p>
+    <input type="hidden" name="lat" value="${lat ?? ''}"><input type="hidden" name="lng" value="${lng ?? ''}">`;
+}
+function mountPicker(form) {
+  const latI = form.querySelector('[name=lat]'), lngI = form.querySelector('[name=lng]'), sel = form.querySelector('#loc');
+  const box = form.querySelector('#pick');
+  let marker = null;
+  const set = (lat, lng) => {
+    latI.value = lat ?? ''; lngI.value = lng ?? '';
+    if (!pickMap) return;
+    if (lat == null) { if (marker) { marker.remove(); marker = null; } return; }
+    if (!marker) marker = L.marker([lat, lng], { icon: L.divIcon({ className: '', html: '<div class="pin">★</div>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(pickMap);
+    else marker.setLatLng([lat, lng]);
+  };
+  const findBtn = form.querySelector('#loc-find');
+  if (findBtn) findBtn.addEventListener('click', async () => {
+    const q = (form.querySelector('[name=place]') || {}).value || '';
+    if (!q.trim()) return toast('장소 이름을 먼저 적어 주세요');
+    findBtn.disabled = true; findBtn.textContent = '찾는 중…';
+    const f = await findPlace(q);
+    findBtn.disabled = false; findBtn.textContent = '🔎 장소 이름으로 위치 찾기';
+    if (!f) return toast('위치를 못 찾았어요. 아래 지도를 눌러 직접 골라 주세요');
+    set(f.lat, f.lng); sel.value = keyOf(f.lat, f.lng);
+    if (pickMap) pickMap.setView([f.lat, f.lng], 15);
+    toast(`'${f.name}' 위치로 정했어요`);
+  });
+  sel.addEventListener('change', () => {
+    const p = PLACES[sel.value];
+    if (p) { set(p.lat, p.lng); if (pickMap) pickMap.setView([p.lat, p.lng], 15); }
+    else if (sel.value === '') set(null, null);
+  });
+  if (!window.L) { box.innerHTML = '<div class="map-msg">지도를 불러오려면 인터넷 연결이 필요해요</div>'; return; }
+  const lat = num(latI.value), lng = num(lngI.value);
+  pickMap = L.map(box, { zoomControl: false, attributionControl: false }).setView(lat != null ? [lat, lng] : [35.13, 129.08], lat != null ? 15 : 11);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(pickMap);
+  set(lat, lng);
+  pickMap.on('click', e => { set(+e.latlng.lat.toFixed(6), +e.latlng.lng.toFixed(6)); sel.value = keyOf(+latI.value, +lngI.value); });
+  setTimeout(() => pickMap && pickMap.invalidateSize(), 250);
+}
+
+/* ================= 일정표 ================= */
+let scrolledOnce = false;
+
+function nowCard(n, items, legs) {
+  if (!items.length) return '';
+  const first = items[0], last = items[items.length - 1];
+  const cur = items.filter(i => n >= i.s && n < i.e).pop();
+  const next = items.find(i => i.s > n);
+  let label, body = '';
+
+  if (n < first.s) {
+    const d0 = new Date(n); d0.setHours(0,0,0,0);
+    const d1 = new Date(first.s); d1.setHours(0,0,0,0);
+    const dd = Math.round((d1 - d0) / 864e5);
+    label = dd > 0 ? `수학여행 D-${dd}` : '오늘 출발!';
+    body = `<div class="nc-title">${esc(first.title)}</div>
+      <div class="nc-sub">📍 ${esc(first.place)} · ${mdw(first.s)} ${first.start}</div>
+      <div class="nc-sub" style="margin-top:4px">시작까지 ${fmtDur(first.s - n)}</div>`;
+  } else if (n >= last.e) {
+    label = '여행 종료';
+    body = `<div class="nc-title">수학여행 끝! 다들 수고했어요 👏</div><div class="nc-sub">사진첩에서 추억을 정리해 보세요</div>`;
+  } else if (cur) {
+    const pct = Math.min(100, Math.max(0, (n - cur.s) / (cur.e - cur.s) * 100));
+    label = `지금 · ${cur.day}일차`;
+    body = `<div class="nc-title">${esc(cur.title)}</div>
+      <div class="nc-sub">📍 ${esc(cur.place)} · ${cur.start}~${cur.end}</div>
+      <div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+      <div class="nc-sub">종료까지 ${fmtDur(cur.e - n)}</div>
+      ${(cur.meetPlace || cur.meetTime) ? `<div class="nc-meet">🚩 집합 ${esc(cur.meetPlace || '')} ${esc(cur.meetTime || '')}</div>` : ''}`;
+  } else {
+    label = '이동 중';
+    body = `<div class="nc-title">다음 일정으로 이동 중</div>
+      <div class="nc-sub">📍 ${esc(next.place)} · ${next.start} 시작</div>`;
+  }
+  const showNext = next && (cur || n >= first.s);
+  let nextHTML = '';
+  if (showNext) {
+    const leg = legs.find(l => l.to.id === next.id);
+    const r = leg && RC[leg.key];
+    nextHTML = `<div class="nc-next"><span class="k">다음</span>${next.start} ${esc(next.title)}<em>· ${fmtDur(next.s - n)} 후</em>
+      ${(next.meetPlace || next.meetTime) ? `<div style="margin-top:4px">🚩 집합 ${esc(next.meetPlace || '')} ${esc(next.meetTime || '')}</div>` : ''}
+      ${leg ? `<div class="nc-leg" data-k="${leg.key}">🚌 ${esc(leg.from.mode === 'train' ? '부산역' : leg.from.place)} → ${esc(next.place)} 차로 <span class="lv">${r ? routeText(r) : '계산 중…'}</span></div>` : ''}
+    </div>`;
+  }
+  const nextWithLoc = items.find(i => i.s > n && i.lat != null);
+  const meBtn = nextWithLoc ? `<button class="btn-w" data-act="route-me" data-t="next">🧭 내 위치에서 다음 장소까지</button>` : '';
+  const meRes = nowRoute && nextWithLoc && nowRoute.id === nextWithLoc.id ? nowRoute.html : '';
+  return `<section class="card now-card">
+    <div class="nc-label">${label}</div>${body}${nextHTML}${meBtn}${meRes}
+  </section>`;
+}
+
+function meetCard(n) {
+  const m = state.meet || {};
+  const t = m.time ? new Date(m.time) : null;
+  let rel = '';
+  if (t && !isNaN(t)) rel = t > n ? `${fmtDur(t - n)} 남음` : '시간 지남';
+  const ok = t && !isNaN(t);
+  const lead = alertCfg.leads[0];
+  const alAt = ok ? ` · ${hm(new Date(t - lead * 60000))}` : '';
+  return `<section class="card meet">
+    <div class="row"><h2>🚩 집합 공지</h2><button class="btn-s" data-act="edit-meet">수정</button></div>
+    <div class="meet-place">${esc(m.place || '집합 장소 미정')}</div>
+    <div class="meet-note">${m.note ? esc(m.note) : (ok ? `${mdw(t)} ${hm(t)}` : '시간 미정')}</div>
+    <div class="meet-al">
+      <button class="switch ${alertCfg.on ? 'on' : ''}" data-act="alert-toggle">${alertCfg.on ? '🔔 알림 켜짐' : '🔕 알림 꺼짐'}</button>
+      <span>집합 ${lead}분 전${alAt}</span>
+    </div>
+  </section>`;
+}
+
+let schedDay = null;
+function dayTabsHTML(curDay) {
+  return '<nav class="daytabs" id="daytabs" aria-label="일차 선택">' + state.days.map((d, di) =>
+    `<button class="dtab ${schedDay === di + 1 ? 'on' : ''}" data-dtab="${di + 1}">${di + 1}일차<small>${mdw(at(d.date, '00:00'))}</small></button>`).join('') + '</nav>';
+}
+
+function renderSchedule() {
+  const n = now(), items = flat();
+  const legs = legsOf(items);
+  const legTo = Object.fromEntries(legs.map(l => [l.to.id, l]));
+  const byId = Object.fromEntries(items.map(i => [i.id, i]));
+  const curDay = (items.find(i => statusOf(i, n) !== 'done') || {}).day;
+
+  /* 일차는 헤더 탭으로 나눠서 한 번에 하루씩만 보여줘요 */
+  if (schedDay == null || !state.days[schedDay - 1]) schedDay = curDay || state.days.length;
+  const today = `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`;
+  const tabsHTML = dayTabsHTML(state.days.findIndex(d => d.date === today) + 1);   // 오늘 날짜인 일차에만 빨간 점
+
+  let html = meetCard(n) + tabsHTML;   // 집합 공지+알림을 한 칸으로 합침 · 일차 탭은 그 바로 아래
+
+  state.days.forEach((d, di) => {
+    if (di + 1 !== schedDay) return;
+    html += `<section class="day" id="day-${di + 1}">
+      <div class="day-head"><h2>${di + 1}일차<small>${mdw(at(d.date, '00:00'))}</small></h2>
+      <button class="add" data-act="add" data-day="${di}">＋ 일정 추가</button></div>
+      ${d.items.length ? '' : '<div class="empty">이 날은 아직 일정이 없어요.<br>＋ 일정 추가로 넣어 보세요.</div>'}`;
+    d.items.slice().sort((a, b) => a.start.localeCompare(b.start)).forEach(it => {
+      const f = byId[it.id]; const st = f ? statusOf(f, n) : 'next';
+      if (legTo[it.id]) html += legHTML(legTo[it.id], st === 'next' ? '' : (statusOf(legTo[it.id].from, n) === 'done' && st !== 'next' ? 'done' : ''), true);
+      // '휴식 및 취침', '기상 및 조식'은 장소(호텔) 줄을 빼고, 나머지는 모두 📍 장소 이름 표시 (지도 사이트 링크 없음)
+      const hidePlace = /휴식\s*및\s*취침|기상\s*및\s*조식/.test(it.title || '');
+      const placeHTML = (hidePlace || !it.place) ? '' : `<div class="pl">📍 ${esc(it.place)}</div>`;
+      html += `<div class="item ${st}" id="it-${it.id}">
+        <div class="t">${esc(it.start)}<span>~${esc(it.end)}</span></div>
+        <div class="b">
+          <div class="ti">${esc(it.title)}</div>
+          ${placeHTML}
+          ${it.note ? `<div class="nt">${esc(it.note)}</div>` : ''}
+          ${(it.meetPlace || it.meetTime) ? `<span class="mt">🚩 집합 ${esc(it.meetPlace || '')} ${esc(it.meetTime || '')}</span>` : ''}
+        </div>
+        <button class="ed" data-act="edit" data-day="${di}" data-id="${it.id}">수정</button>
+      </div>`;
+    });
+    html += `</section>`;
+  });
+
+  const root = $('#view-schedule');
+  root.innerHTML = html;
+  fillLegs(root);
+
+  if (!scrolledOnce) {
+    scrolledOnce = true;
+    const el = document.querySelector('.item.now');
+    if (el) setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
+  }
+}
+
+function itemForm(di, id) {
+  const day = state.days[di];
+  const it = id ? day.items.find(x => x.id === id) : { start:'', end:'', title:'', place:'', meetPlace:'', meetTime:'', note:'', lat:null, lng:null };
+  openModal(`<h3>${id ? '일정 수정' : `${di + 1}일차 일정 추가`}</h3>
+    <form id="f">
+      <div class="two">
+        <label>시작<input type="time" name="start" required value="${esc(it.start)}"></label>
+        <label>종료<input type="time" name="end" required value="${esc(it.end)}"></label>
+      </div>
+      <label>일정<input name="title" required value="${esc(it.title)}"></label>
+      <label>장소 이름 <small>· 사진 위치 자동 입력에 쓰여요</small><input name="place" required value="${esc(it.place)}"></label>
+      ${pickerHTML(it.lat, it.lng)}
+      <div class="two">
+        <label>집합 장소<input name="meetPlace" value="${esc(it.meetPlace)}" placeholder="예: 정문"></label>
+        <label>집합 시간<input type="time" name="meetTime" value="${esc(it.meetTime)}"></label>
+      </div>
+      <label>메모<textarea name="note" rows="2">${esc(it.note)}</textarea></label>
+      <div class="actions">
+        ${id ? '<button type="button" class="btn danger" id="del">삭제</button>' : ''}
+        <span class="sp"></span>
+        <button type="button" class="btn ghost" data-act="close">취소</button>
+        <button type="button" class="btn primary" data-save>저장</button>
+      </div>
+    </form>`);
+  const form = $('#f');
+  mountPicker(form);
+  bindSave(form, async e => {
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(e.target));
+    if (v.end <= v.start) { toast('종료 시간이 시작 시간보다 늦어야 해요'); return; }
+    let lat = num(v.lat), lng = num(v.lng), found = null;
+    delete v.loc; delete v.lat; delete v.lng;
+    if (lat == null && v.place.trim()) {   // 지도 위치를 안 골랐으면 장소 이름으로 찾아 봄
+      toast('장소 이름으로 지도 위치 찾는 중…', true);
+      found = await findPlace(v.place);
+      $('#toast').style.opacity = 0;
+      if (found) { lat = found.lat; lng = found.lng; }
+    }
+    const mapLine = found ? `지도 위치: '${found.name}'(으)로 찾았어요` : (lat == null ? '지도 위치를 못 찾아서 지도에는 안 보여요' : '');
+    const moved = lat !== it.lat || lng !== it.lng;
+    /* 실수로 바뀌지 않게 저장 전에 한 번 더 물어보기 */
+    const show = x => (x == null || x === '') ? '(없음)' : x;
+    const lines = [];
+    if (id) {
+      if (v.start !== it.start || v.end !== it.end) lines.push(`시간: ${it.start}~${it.end} → ${v.start}~${v.end}`);
+      [['title', '일정'], ['place', '장소'], ['meetPlace', '집합 장소'], ['meetTime', '집합 시간'], ['note', '메모']].forEach(([k, l]) => {
+        if ((v[k] || '') !== (it[k] || '')) lines.push(`${l}: ${show(it[k])} → ${show(v[k])}`);
+      });
+      if (moved) lines.push(mapLine || '지도 위치가 바뀌어요');
+      if (!lines.length) { closeModal(); toast('바뀐 내용이 없어요'); return; }
+      if (!(await askConfirm(`이 일정을 이렇게 바꿀까요?\n\n${lines.join('\n')}`, '저장'))) return;
+    } else if (!(await askConfirm(`${di + 1}일차에 이 일정을 추가할까요?\n\n${v.start}~${v.end} ${v.title}\n장소: ${v.place}${mapLine ? '\n' + mapLine : ''}`, '추가'))) return;
+    if (id) {
+      Object.assign(it, v, { lat, lng });
+      if (moved) { delete it.lat2; delete it.lng2; }
+    } else day.items.push({ id: uid(), ...v, lat, lng });
+    day.items.sort((a, b) => a.start.localeCompare(b.start));
+    saveState(); closeModal(); renderSchedule();
+    mapDay = di + 1;                       // 지도 탭을 열면 바뀐 날짜가 바로 보이게
+    if (curTab === 'map') renderMap();
+    toast(lat != null ? '저장했어요 · 지도에도 반영했어요' : '저장했어요 (지도 위치가 없어서 지도에는 안 보여요)');
+  });
+  if (id) $('#del').addEventListener('click', async () => {
+    if (!(await askConfirm('이 일정을 삭제할까요?', '삭제', true))) return;
+    day.items = day.items.filter(x => x.id !== id);
+    saveState(); closeModal(); renderSchedule();
+    mapDay = di + 1;
+    if (curTab === 'map') renderMap();
+    toast('삭제했어요');
+  });
+}
+
+function meetForm() {
+  const m = state.meet || {};
+  openModal(`<h3>🚩 집합 공지 수정</h3>
+    <form id="f">
+      <label>집합 장소<input name="place" required value="${esc(m.place)}" placeholder="예: 롯데월드 정문 앞"></label>
+      ${pickerHTML(m.lat, m.lng)}
+      <label>집합 시간<input type="datetime-local" name="time" value="${esc(m.time)}"></label>
+      <label>공지 메모 <small>· 비워 두면 집합 시간이 보여요</small><textarea name="note" rows="3" placeholder="예: 버스 2호차 앞으로 모이기">${esc(m.note)}</textarea></label>
+      <div class="two">
+        <label>집합 알림<select name="alertOn"><option value="1" ${alertCfg.on ? 'selected' : ''}>켜기</option><option value="0" ${alertCfg.on ? '' : 'selected'}>끄기</option></select></label>
+        <label>알림 시간 <small>· 집합 몇 분 전</small><input type="number" name="lead" min="1" max="180" step="1" inputmode="numeric" required value="${alertCfg.leads[0]}"></label>
+      </div>
+      <div class="actions"><span class="sp"></span>
+        <button type="button" class="btn ghost" data-act="close">취소</button>
+        <button type="button" class="btn primary" data-save>저장</button></div>
+    </form>`);
+  const form = $('#f');
+  mountPicker(form);
+  bindSave(form, async e => {
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(e.target));
+    const lead = cleanLead(v.lead);
+    if (!lead) { toast('알림 시간은 1~180분 사이로 적어 주세요'); return; }
+    const on = v.alertOn === '1';
+    const lat = num(v.lat), lng = num(v.lng);
+    delete v.loc; delete v.lat; delete v.lng; delete v.lead; delete v.alertOn;
+    state.meet = { ...v, lat, lng, updatedAt: new Date().toISOString() };
+    meetRoute = '';
+    saveState();
+    await setAlert(on, lead);
+    closeModal(); renderSchedule(); toast('집합 공지를 바꿨어요');
+  });
+}
+
+/* ================= 집합 알림 ================= */
+const ALERT_KEY = 'busan-trip-alert-v1', FIRED_KEY = 'busan-trip-alert-fired-v1';
+let alertCfg = { on: false, leads: [10] };
+try { alertCfg = { ...alertCfg, ...JSON.parse(localStorage.getItem(ALERT_KEY) || '{}') }; } catch (e) {}
+let fired = {};
+try { fired = JSON.parse(localStorage.getItem(FIRED_KEY) || '{}'); } catch (e) {}
+const saveAlert = () => { try { localStorage.setItem(ALERT_KEY, JSON.stringify(alertCfg)); localStorage.setItem(FIRED_KEY, JSON.stringify(fired)); } catch (e) {} };
+/* 알림은 하나만: 집합 몇 분 전 (집합 공지 수정 화면에서 정함) */
+const cleanLead = v => { v = Math.round(+v); return v >= 1 && v <= 180 ? v : null; };
+alertCfg.leads = [cleanLead(Array.isArray(alertCfg.leads) ? alertCfg.leads[0] : null) || 10];
+/* 알림 켜기/시간 바꾸기 (이미 지난 알림은 울리지 않게 표시) */
+async function setAlert(on, lead) {
+  const was = alertCfg.on;
+  alertCfg.on = on; alertCfg.leads = [lead];
+  if (on) {
+    const n = now();
+    for (const ev of meetEvents()) if (ev.when - lead * 60000 <= n) fired[firedKey(ev, lead)] = Date.now();
+    if (!was) { unlockAudio(); try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {}); } catch (e) {} }   // 권한 창을 기다리지 않고 바로 저장
+  }
+  saveAlert();
+}
+
+/* 알림 대상: 집합 공지 + 일정별 집합 시간 */
+function meetEvents() {
+  const evs = [], seen = new Set();
+  const add = ev => {
+    if (!ev.when || isNaN(ev.when)) return;
+    const sig = ev.when.getTime() + '|' + ev.place;
+    if (seen.has(sig)) return; seen.add(sig); evs.push(ev);
+  };
+  const m = state.meet || {};
+  if (m.time) add({ id: 'meet', place: m.place || '집합 장소', when: new Date(m.time), note: m.note || '', ll: m.lat != null ? [m.lat, m.lng] : null });
+  for (const it of flat()) {
+    if (!it.meetTime) continue;
+    add({ id: it.id, place: it.meetPlace || it.place, when: at(it.date, it.meetTime), note: it.title, ll: it.meetPlace && it.meetPlace !== it.place ? null : startLL(it) });
+  }
+  return evs.sort((a, b) => a.when - b.when);
+}
+const firedKey = (ev, lead) => `${ev.id}|${ev.when.toISOString()}|${lead}`;
+
+function upcomingAlerts() {
+  const n = now(), out = [];
+  for (const ev of meetEvents()) for (const lead of alertCfg.leads) {
+    const t = new Date(ev.when - lead * 60000);
+    if (t > n) out.push({ ev, lead, t });
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+function checkAlerts() {
+  if (!alertCfg.on) return;
+  const n = now();
+  for (const ev of meetEvents()) {
+    for (const lead of alertCfg.leads) {
+      const t = ev.when - lead * 60000, key = firedKey(ev, lead);
+      if (fired[key]) continue;
+      // 알림 시각이 지났고, 15분 이내이며, 집합 시간이 5분 이상 지나지 않았을 때만 울림
+      if (n >= t && n - t < 15 * 60000 && n - ev.when < 5 * 60000) {
+        fired[key] = Date.now(); saveAlert();
+        showAlarm(ev, lead);
+        return;   // 한 번에 하나씩
+      }
+    }
+  }
+}
+
+/* 소리 */
+let actx = null, beepTimer = null;
+function unlockAudio() {
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
+}
+function beep() {
+  if (!actx) return;
+  try {
+    const t0 = actx.currentTime;
+    for (let i = 0; i < 3; i++) {
+      const o = actx.createOscillator(), g = actx.createGain(), s = t0 + i * 0.4;
+      o.type = 'sine'; o.frequency.value = i === 2 ? 1175 : 880;
+      g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.35, s + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.3);
+      o.connect(g); g.connect(actx.destination); o.start(s); o.stop(s + 0.32);
+    }
+  } catch (e) {}
+}
+
+/* 알림 화면 */
+function showAlarm(ev, lead, isTest) {
+  const head = isTest ? '🔔 알림 테스트' : (lead ? `${lead}분 후 집합!` : '지금 집합 시간!');
+  $('#alarm-in').innerHTML = `<div class="al-big">🚩</div>
+    <div class="al-k">${head}</div>
+    <div class="al-place">${esc(ev.place)}</div>
+    <div class="al-time">${mdw(ev.when)} ${hm(ev.when)}</div>
+    ${ev.note ? `<div class="al-note">${esc(ev.note)}</div>` : ''}
+    <div class="al-btns">
+      <button class="btn" data-act="alarm-ok">확인했어요</button>
+    </div>`;
+  $('#alarm').classList.remove('hidden');
+  beep(); clearInterval(beepTimer);
+  let n = 0; beepTimer = setInterval(() => { if (++n > 4) clearInterval(beepTimer); else beep(); }, 8000);
+  try { navigator.vibrate && navigator.vibrate([400, 200, 400, 200, 600]); } catch (e) {}
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('🚩 ' + head.replace('🔔 ', ''), { body: `${ev.place} · ${hm(ev.when)}`, tag: 'meet-' + ev.id, requireInteraction: true });
+    }
+  } catch (e) {}   // 안드로이드 크롬 등 페이지 알림을 지원하지 않는 브라우저는 무시
+}
+function closeAlarm() { $('#alarm').classList.add('hidden'); clearInterval(beepTimer); try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} }
+
+async function toggleAlert() {
+  unlockAudio();
+  await setAlert(!alertCfg.on, alertCfg.leads[0]);
+  toast(alertCfg.on ? '집합 알림을 켰어요' : '집합 알림을 껐어요');
+  renderSchedule();
+}
+
+/* ================= 지도 탭 ================= */
+let map = null, mapLayer = null, meMarker = null, mapDay = null, mapToken = 0, mapStops = [], mapMarkers = [];
+
+function photoCounts() {
+  const c = {};
+  for (const p of photos) { const m = matchPhoto(new Date(p.time)); if (m.id) c[m.id] = (c[m.id] || 0) + 1; }
+  return c;
+}
+function stopsOfDay(day, n) {
+  const items = flat().filter(i => i.day === day);
+  const pts = [];
+  for (const it of items) {
+    const st = statusOf(it, n);
+    const s = startLL(it), e = endLL(it);
+    if (it.mode === 'train') {
+      if (s) pts.push({ ll: s, title: it.title.replace('🚄 ', '') + ' (출발)', it, st });
+      if (e && it.lat2 != null) pts.push({ ll: e, title: it.title.replace('🚄 ', '') + ' (도착)', it, st });
+      continue;
+    }
+    if (!s) continue;
+    /* 같은 일정 안의 출발·도착 지점이 1km보다 가까우면(예: 국제시장 → BIFF거리) 핀 하나로 합치고,
+       다음 장소로 가는 길은 도착 지점에서 출발 */
+    const far = it.lat2 != null && hav(s, e) > 1;
+    pts.push({ ll: s, title: it.title, it, st, outLL: (!far && it.lat2 != null) ? e : null });
+    if (far) pts.push({ ll: e, title: it.title + ' (도착)', it, st });
+  }
+  const busan = pts.filter(p => p.ll[0] < 36);   // 서울(수서역) 지점은 부산 지도에서 제외
+  const stops = [];
+  for (const p of busan) {
+    const last = stops[stops.length - 1];
+    if (last && hav(last.ll, p.ll) < 0.1) {
+      if (!last.items.includes(p.it)) last.items.push(p.it);
+      last.titles.push(p.title); last.end = p.it.end; last.eDate = p.it.e; last.sts.push(p.st); last.outLL = p.outLL;
+    } else stops.push({ ll: p.ll, outLL: p.outLL, titles: [p.title], items: [p.it], start: p.it.start, end: p.it.end, sDate: p.it.s, eDate: p.it.e, sts: [p.st], name: p.it.mode === 'train' ? '부산역' : p.it.place });
+  }
+  stops.forEach(s => { s.st = s.sts.includes('now') ? 'now' : (s.sts.every(x => x === 'done') ? 'done' : 'next'); });
+  return stops;
+}
+
+function renderMap() {
+  const n = now(), items = flat();
+  if (mapDay == null) {
+    const cur = items.find(i => statusOf(i, n) !== 'done');
+    mapDay = cur ? cur.day : state.days.length;
+  }
+  $('#map-chips').innerHTML = state.days.map((d, di) =>
+    `<button class="chip ${mapDay === di + 1 ? 'on' : ''}" data-act="map-day" data-day="${di + 1}">${di + 1}일차 · ${mdw(at(d.date, '00:00'))}</button>`).join('');
+
+  const stops = mapStops = stopsOfDay(mapDay, n);
+  const counts = photoCounts();
+  const cnt = s => s.items.reduce((a, it) => a + (counts[it.id] || 0), 0);
+
+  /* 경유지 목록 + 구간 */
+  let list = '';
+  stops.forEach((s, i) => {
+    if (i > 0) {
+      const prev = stops[i - 1];
+      const from = prev.outLL || prev.ll;
+      const key = rkey(from, s.ll, 'car');
+      LEGMETA[key] = { a: from, b: s.ll };
+      const gap = Math.round((s.sDate - prev.eDate) / 60000);
+      list += legHTML({ key, a: from, b: s.ll, from: { place: prev.name }, to: { place: s.name }, gap }, prev.st === 'done' && s.st !== 'next' ? 'done' : '');
+    }
+    list += `<div class="stop ${s.st}" id="stop-${i}" data-act="fly" data-i="${i}">
+      <div class="num">${i + 1}</div>
+      <div class="b"><div class="ti">${esc(s.titles.join(' / '))}</div>
+      <div class="pl">${s.start}~${s.end}${cnt(s) ? ` · 📷 ${cnt(s)}장` : ''}</div></div>
+      <a class="go" href="${nMap(s.name, s.ll)}" ${NT}>네이버지도 ↗</a></div>`;
+  });
+  $('#stops').innerHTML = list || '<div class="empty">이 날은 지도에 표시할 장소가 없어요.</div>';
+  fillLegs($('#stops'));
+
+  /* 실제 지도 */
+  if (!window.L) {
+    $('#map').innerHTML = '<div class="map-msg">지도를 불러오지 못했어요.<br>인터넷 연결을 확인하거나, 파일을 미리보기가 아니라 브라우저(크롬·사파리)에서 열어 주세요.<br>아래 목록의 네이버지도 링크는 사용할 수 있어요.</div>';
+    return;
+  }
+  if (!map) {
+    map = L.map('map', { zoomControl: true, zoomSnap: 0.25, zoomDelta: 0.5 }).setView([35.13, 129.08], 11);
+    const fail = () => { const n = $('#map-note'); if (n && !n.dataset.err) { n.dataset.err = 1; n.innerHTML = '⚠️ 지도 사진을 불러오지 못하고 있어요. 인터넷 연결을 확인해 주세요.'; n.style.color = 'var(--warn)'; } };
+    const road = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
+    road.on('tileerror', fail);
+    road.addTo(map);
+    map.createPane('timePane').style.zIndex = 650;   // 시간 라벨은 핀보다 위 (겹쳐도 글자가 보이게)
+    map.on('zoomend', () => declutterTimes());
+    mapLayer = L.layerGroup().addTo(map);
+  }
+  setTimeout(() => {
+    map.invalidateSize();
+    mapLayer.clearLayers(); mapMarkers = []; timeLabels = [];
+    const token = ++mapToken;
+    stops.forEach((s, i) => {
+      const mk = L.marker(s.ll, { icon: L.divIcon({ className: '', html: `<div class="pin ${s.st}">${i + 1}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }) })
+        .bindPopup(`<b>${i + 1}. ${esc(s.titles.join(' / '))}</b><br>${s.start}~${s.end}${cnt(s) ? `<br>📷 사진 ${cnt(s)}장` : ''}<br><a href="${nMap(s.name, s.ll)}" ${NT}>네이버지도에서 보기 ↗</a>`)
+        .addTo(mapLayer);
+      mapMarkers.push(mk);
+      if (i > 0) {
+        const a = stops[i - 1].outLL || stops[i - 1].ll, b = s.ll;
+        getRoute(a, b, 'car', true).then(r => {
+          if (token !== mapToken) return;
+          const geo = r && r.geo, pts = geo || [a, b], dim = s.st === 'done';
+          L.polyline(pts, { color: '#ffffff', weight: 8, opacity: dim ? .35 : .9, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(mapLayer);   // 흰 테두리
+          L.polyline(pts, { color: dim ? '#94a3b8' : '#0ea5e9', weight: 4.5, opacity: dim ? .7 : 1, dashArray: geo ? null : '6 8', lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(mapLayer);
+          if (r) {   // 경로 가운데에 차로 걸리는 시간 표시
+            const mid = pts.length > 2 ? pts[Math.floor(pts.length / 2)] : [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+            const tt = L.tooltip({ permanent: true, direction: 'center', className: 'tt-time' + (dim ? ' dim' : ''), interactive: false, pane: 'timePane' })
+              .setLatLng(mid).setContent(`🚌 ${fmtDur(r.min * 60000)}`).addTo(mapLayer);
+            timeLabels.push({ tt, pts, i });
+            timeLabels.sort((x, y) => x.i - y.i);
+            declutterTimes();
+          }
+        });
+      }
+    });
+    if (myPos) placeMe();
+    if (stops.length) map.fitBounds(L.latLngBounds(stops.map(s => s.ll)).pad(0.06), { maxZoom: 15 });
+  }, 60);
+}
+/* 시간 라벨 자리 잡기: 경로 위 여러 지점을 차례로 시도해서 핀·다른 라벨과 안 겹치는 곳에 놓음 */
+let timeLabels = [], layoutTimer = null;
+function pointAt(pts, f) {
+  const P = pts.map(p => map.latLngToLayerPoint(p));
+  const seg = []; let total = 0;
+  for (let i = 1; i < P.length; i++) { const d = P[i].distanceTo(P[i - 1]); seg.push(d); total += d; }
+  let t = total * f;
+  for (let i = 1; i < P.length; i++) {
+    if (t <= seg[i - 1] || i === P.length - 1) {
+      const k = seg[i - 1] ? Math.min(1, t / seg[i - 1]) : 0;
+      return map.layerPointToLatLng(P[i - 1].add(P[i].subtract(P[i - 1]).multiplyBy(k)));
+    }
+    t -= seg[i - 1];
+  }
+  return L.latLng(pts[0]);
+}
+function declutterTimes() {
+  clearTimeout(layoutTimer);
+  layoutTimer = setTimeout(() => {
+    const box = document.getElementById('map'); if (!box || !map) return;
+    if (map._animatingZoom || map._zooming) { declutterTimes(); return; }   // 확대·축소 움직임이 끝난 뒤에 자리 잡기
+    const pins = [...box.querySelectorAll('.pin')].map(el => el.getBoundingClientRect());
+    const labels = [];
+    const hit = (r, list) => list.some(k => !(r.right < k.left + 1 || r.left > k.right - 1 || r.bottom < k.top + 1 || r.top > k.bottom - 1));
+    const FR = [0.5, 0.38, 0.62, 0.27, 0.73, 0.16, 0.84];
+    timeLabels.forEach(o => {
+      const el = o.tt.getElement(); if (!el) return;
+      el.style.visibility = 'visible';
+      // 1차: 핀·라벨 모두 피하기 → 2차: 라벨만 피하기 → 그래도 없으면 확대할 때까지 숨김
+      for (const avoidPins of [true, false]) {
+        for (const f of FR) {
+          o.tt.setLatLng(pointAt(o.pts, f));
+          const r = el.getBoundingClientRect();
+          if (!hit(r, labels) && !(avoidPins && hit(r, pins))) { labels.push(r); return; }
+        }
+      }
+      el.style.visibility = 'hidden';
+    });
+  }, 80);
+}
+function placeMe() {
+  if (!map || !myPos) return;
+  if (!meMarker) meMarker = L.marker(myPos, { icon: L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), zIndexOffset: 1000 }).bindPopup('내 위치').addTo(map);
+  else meMarker.setLatLng(myPos);
+}
+async function locateMe() {
+  toast('내 위치 확인 중…', true);
+  try {
+    const me = await getMyPos();
+    placeMe(); if (map) map.setView(me, 15);
+    const n = now();
+    const next = flat().find(i => i.day === mapDay && i.s > n && i.lat != null) || flat().find(i => i.s > n && i.lat != null);
+    if (next) {
+      const ll = startLL(next);
+      const w = await getRoute(me, ll, 'foot');
+      const c = await getRoute(me, ll, 'car');
+      $('#map-me').innerHTML = `<section class="card"><h2>🧭 내 위치 → ${esc(next.place)}</h2>
+        <div class="route-box" style="border:0;padding:6px 0 0">🚶 걸어서 ${routeText(w)}<br>🚕 차로 ${routeText(c)}
+        <div class="rl"><a ${NT} href="${nBy('walk', '내 위치', me, next.place, ll)}">도보 길찾기 ↗</a>
+        <a ${NT} href="${nBy('traffic', '내 위치', me, next.place, ll)}">대중교통 ↗</a></div></div></section>`;
+    }
+    toast('내 위치를 표시했어요');
+  } catch (e) { toast(e.message || '위치를 가져오지 못했어요'); }
+}
+
+/* ================= 사진 저장소 (IndexedDB) ================= */
+const PDB = {
+  db: null, mem: { photos: new Map(), stickers: new Map() },
+  open() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('busan-trip-photos', 2);
+        r.onupgradeneeded = () => {
+          const db = r.result;
+          if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains('stickers')) db.createObjectStore('stickers', { keyPath: 'id' });
+        };
+        r.onsuccess = () => { this.db = r.result; res(); };
+        r.onerror = () => res();
+      } catch (e) { res(); }
+    });
+  },
+  tx(store, mode, fn) {
+    return new Promise((res, rej) => {
+      const t = this.db.transaction(store, mode); const st = t.objectStore(store);
+      const r = fn(st); t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error);
+    });
+  },
+  async all(store = 'photos') { if (!this.db) return [...this.mem[store].values()]; try { return await this.tx(store, 'readonly', s => s.getAll()) || []; } catch (e) { return []; } },
+  async put(p, store = 'photos') { if (!this.db) { this.mem[store].set(p.id, p); return; } await this.tx(store, 'readwrite', s => s.put(p)); },
+  async del(id, store = 'photos') { if (!this.db) { this.mem[store].delete(id); return; } await this.tx(store, 'readwrite', s => s.delete(id)); }
+};
+
+let photos = [], stickers = [];
+let albumFilter = 'all';
+const urls = new Map();
+function urlOf(p, k) {
+  const key = p.id + k;
+  if (!urls.has(key)) urls.set(key, URL.createObjectURL(p[k]));
+  return urls.get(key);
+}
+function dropUrls(id) { ['full', 'thumb'].forEach(k => { const u = urls.get(id + k); if (u) URL.revokeObjectURL(u); urls.delete(id + k); }); }
+
+async function photoTime(file) {
+  if (window.exifr) {
+    try {
+      const t = await exifr.parse(file, { pick: ['DateTimeOriginal', 'CreateDate'] });
+      const d = t && (t.DateTimeOriginal || t.CreateDate);
+      if (d instanceof Date && !isNaN(d)) return { time: d, src: 'exif' };
+    } catch (e) {}
+  }
+  return { time: new Date(file.lastModified || Date.now()), src: 'file' };
+}
+
+async function resize(file, max, q) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    const r = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * r); c.height = Math.round(img.naturalHeight * r);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise(res => c.toBlob(b => res(b || file), 'image/jpeg', q));
+  } catch (e) { return file; }
+  finally { URL.revokeObjectURL(url); }
+}
+
+/* 사진 시간 ↔ 일정 시간 비교해서 위치 찾기 */
+function matchPhoto(date) {
+  const items = flat();
+  if (!items.length) return { id: null, place: '위치 미정', how: '' };
+  const inRange = items.filter(i => date >= i.s && date < i.e);
+  if (inRange.length) { const it = inRange[inRange.length - 1]; return { id: it.id, item: it, place: it.place, how: `${it.start}~${it.end} 일정 시간에 찍힘` }; }
+  const first = items[0], last = items[items.length - 1];
+  const H3 = 3 * 3600e3;
+  if (date < first.s - H3 || date > last.e + H3) return { id: null, place: '여행 기간 외', how: '일정 기간 밖에서 찍힌 사진이에요' };
+  const prev = items.filter(i => i.e <= date).pop();
+  const next = items.find(i => i.s > date);
+  if (!prev) return { id: next.id, item: next, place: next.place, how: '첫 일정 직전에 찍힘' };
+  if (!next) return { id: prev.id, item: prev, place: prev.place, how: '마지막 일정 직후에 찍힘' };
+  const near = (date - prev.e) <= (next.s - date) ? prev : next;
+  if (prev.place === next.place) return { id: near.id, item: near, place: prev.place, how: '앞뒤 일정 장소가 같아서 자동 입력' };
+  return { id: near.id, item: near, place: `${prev.place} → ${next.place} 이동 중`, how: '일정 사이 이동 시간에 찍힘' };
+}
+
+/* ================= 여러 장 한 번에 올리기 =================
+   · 사진 고르는 창에서 여러 장을 한 번에 골라도 되고
+   · 한 장씩만 고를 수 있는 휴대폰/앱이면 '+ 사진 더 고르기'로 계속 모았다가 한 번에 올림
+   · PC에서는 사진첩 화면에 사진 파일을 끌어다 놓아도 됨 */
+let upBatch = null;   // { items: [{ p, url, cap }], all }
+async function prepFile(f) {
+  const { time, src } = await photoTime(f);
+  const full = await resize(f, 1600, 0.85);
+  const thumb = await resize(f, 480, 0.75);
+  return { id: uid(), time: time.toISOString(), src, full, thumb, place: '', caption: '', name: f.name, addedAt: Date.now() };
+}
+async function addFiles(files) {
+  files = files.filter(f => /^image\//.test(f.type) || /\.(jpe?g|png|heic|heif|webp|gif)$/i.test(f.name || ''));
+  if (!files.length) return;
+  syncBatch();
+  const out = new Array(files.length);
+  let next = 0, done = 0;
+  toast(`사진 준비 중… 0/${files.length}`, true);
+  const worker = async () => {   // 3장씩 동시에 처리해서 빠르게
+    while (next < files.length) {
+      const i = next++;
+      try { out[i] = await prepFile(files[i]); } catch (e) { console.warn(e); }
+      done++; toast(`사진 준비 중… ${done}/${files.length}`, true);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, files.length) }, worker));
+  $('#toast').style.opacity = 0;
+  const ready = out.filter(Boolean);
+  if (!ready.length) return toast('사진을 읽지 못했어요');
+  if (!upBatch) upBatch = { items: [], all: '' };
+  ready.forEach(p => upBatch.items.push({ p, url: URL.createObjectURL(p.thumb), cap: '' }));
+  upBatch.items.sort((x, y) => new Date(x.p.time) - new Date(y.p.time));
+  uploadForm();
+  if (ready.length < files.length) toast(`${files.length - ready.length}장은 읽지 못했어요`);
+}
+function syncBatch() {   // 다시 그리기 전에 지금까지 쓴 글을 기억
+  if (!upBatch) return;
+  const sh = $('#sheet');
+  upBatch.items.forEach(it => { const ta = sh.querySelector(`textarea[data-id="${it.p.id}"]`); if (ta) it.cap = ta.value; });
+  const all = $('#up-all'); if (all) upBatch.all = all.value;
+}
+function endBatch() {
+  if (!upBatch) return;
+  upBatch.items.forEach(it => URL.revokeObjectURL(it.url));
+  upBatch = null;
+}
+
+/* 올리기 전에 글 남기기 */
+function uploadForm() {
+  const b = upBatch, n = b.items.length;
+  modalLock = true;
+  openModal(`<h3>✏️ 사진 올리기 · ${n}장</h3>
+    <p class="hint" style="margin:0 0 12px">사진 고르는 창에서 여러 장을 한 번에 고를 수 있어요. 더 넣으려면 '＋ 사진 더 고르기'를 누르세요. 글은 안 써도 되고, 위치는 찍힌 시간을 보고 자동으로 넣어요.</p>
+    ${n > 1 ? `<label>모든 사진에 같은 글 <small>· 사진별 글을 쓰면 그게 우선이에요</small>
+      <textarea id="up-all" rows="2" maxlength="300" placeholder="예: 첫날 부산 도착! 🌊">${esc(b.all)}</textarea></label>` : ''}
+    <div class="up-list">${b.items.map(it => {
+      const p = it.p, d = new Date(p.time), m = matchPhoto(d);
+      return `<div class="up-item"><img src="${it.url}" alt="">
+        <div class="b"><div class="up-meta">${mdw(d)} ${hm(d)} · 📍 ${esc(m.place)}${p.src === 'exif' ? '' : ' <small>(촬영 시간 정보가 없어 파일 시간 사용)</small>'}</div>
+        <textarea data-id="${p.id}" rows="2" maxlength="300" placeholder="이 사진에 대한 글 (선택)">${esc(it.cap)}</textarea></div>
+        <button type="button" class="up-rm" data-rm="${p.id}" aria-label="이 사진 빼기">✕</button></div>`;
+    }).join('')}</div>
+    <div class="actions up-actions">
+      <button type="button" class="btn ghost" id="up-cancel">취소</button>
+      <button type="button" class="btn ghost" id="up-more">＋ 사진 더 고르기</button><span class="sp"></span>
+      <button type="button" class="btn primary" id="up-ok">${n}장 모두 올리기</button></div>`);
+  $('#up-more').addEventListener('click', () => { syncBatch(); $('#file').click(); });
+  $('#sheet').querySelectorAll('[data-rm]').forEach(btn => btn.addEventListener('click', () => {
+    syncBatch();
+    const i = b.items.findIndex(it => it.p.id === btn.dataset.rm);
+    if (i >= 0) { URL.revokeObjectURL(b.items[i].url); b.items.splice(i, 1); }
+    if (!b.items.length) { endBatch(); closeModal(); return; }
+    uploadForm();
+  }));
+  $('#up-cancel').addEventListener('click', async () => {
+    if (!(await askConfirm(`사진 ${b.items.length}장을 올리지 않고 취소할까요?`, '취소하기', true))) return;
+    endBatch(); closeModal();
+  });
+  $('#up-ok').addEventListener('click', async () => {
+    syncBatch();
+    const all = (b.all || '').trim();
+    const okBtn = $('#up-ok'); okBtn.disabled = true;
+    let ok = 0, noExif = 0;
+    for (const it of b.items) {
+      const p = it.p;
+      p.caption = (it.cap || '').trim() || all;
+      try { await PDB.put(p); photos.push(p); ok++; if (p.src !== 'exif') noExif++; }
+      catch (e) { console.warn(e); }
+      okBtn.textContent = `올리는 중… ${ok}/${b.items.length}`;
+    }
+    const failed = b.items.length - ok;
+    endBatch(); closeModal(); renderAlbum();
+    toast(`${ok}장 올렸어요${failed ? ` (${failed}장은 저장 공간이 부족해 못 올렸어요)` : ''}${noExif ? ` · ${noExif}장은 파일 시간 기준` : ''}`);
+  });
+}
+
+/* PC: 사진첩 화면에 사진 파일을 끌어다 놓기 */
+['dragover', 'drop'].forEach(ev => document.addEventListener(ev, e => {
+  if (curTab !== 'album' || !e.dataTransfer || ![...(e.dataTransfer.types || [])].includes('Files')) return;
+  e.preventDefault();
+  if (ev === 'drop') addFiles([...e.dataTransfer.files]);
+}));
+
+function renderAlbum() {
+  const sorted = photos.slice().sort((a, b) => new Date(a.time) - new Date(b.time));
+  const groups = new Map();
+  const dayCount = { etc: 0 };
+  for (const p of sorted) {
+    const m = matchPhoto(new Date(p.time));
+    const day = m.item ? m.item.day : 'etc';
+    dayCount[day] = (dayCount[day] || 0) + 1;
+    if (albumFilter !== 'all' && String(albumFilter) !== String(day)) continue;
+    const key = m.id || 'etc';
+    if (!groups.has(key)) groups.set(key, { m, day, list: [] });
+    groups.get(key).list.push(p);
+  }
+
+  let html = `<section class="card">
+    <p class="hint" style="margin:0">사진 ${photos.length}장 · 찍힌 시간을 읽어서 그때 일정 장소로 위치를 자동 입력해요</p>
+    <div class="album-actions">
+      <button class="btn primary sm" data-act="upload">📁 앨범에서 여러 장 올리기</button>
+      <button class="btn ghost sm" data-act="camera">📷 바로 찍기</button>
+      <button class="btn ghost sm" data-act="sticker-new">✨ 스티커 추가하기</button>
+    </div></section>`;
+  if (stickers.length) {
+    html += `<section class="card"><h2>🏷️ 내 스티커 ${stickers.length}</h2>
+      <div class="stk-strip">${stickers.map(s => `<button class="stk" data-act="sticker-view" data-id="${s.id}"><img src="${urlOf(s, 'blob')}" alt=""></button>`).join('')}</div>
+      <p class="hint" style="margin-top:6px">사진을 누르고 <b>🎨 꾸미기</b>에서 스티커를 붙일 수 있어요.</p></section>`;
+  }
+
+  const chips = [['all', '전체', photos.length]].concat(state.days.map((d, di) => [di + 1, `${di + 1}일차`, dayCount[di + 1] || 0]));
+  if (dayCount.etc) chips.push(['etc', '기타', dayCount.etc]);
+  html += `<div class="chips">${chips.map(([k, l, c]) =>
+    `<button class="chip ${String(albumFilter) === String(k) ? 'on' : ''}" data-act="filter" data-f="${k}">${l} ${c}</button>`).join('')}</div>`;
+
+  if (!photos.length) {
+    html += `<div class="empty"><b>🏖️</b>아직 사진이 없어요.<br>아래 <span style="font-weight:800;color:var(--sky-d)">＋ 사진 올리기</span>를 눌러 추가해 보세요!</div>`;
+  } else if (!groups.size) {
+    html += `<div class="empty">이 일차에는 아직 사진이 없어요.</div>`;
+  } else {
+    for (const [, g] of groups) {
+      const it = g.m.item;
+      html += `<div class="grp"><div class="grp-h">
+        ${it ? `<span class="grp-day">${it.day}일차</span><b>${esc(it.title)}</b><span>📍 ${esc(it.place)} · ${it.start}~${it.end}</span>`
+             : `<b>여행 기간 외 · 기타</b>`}
+        </div><div class="grid">${g.list.map(p => {
+          const d = new Date(p.time);
+          const when = `${d.getMonth() + 1}월 ${d.getDate()}일 ${d.getHours()}시 ${pad(d.getMinutes())}분`;
+          return `<button class="pcard" data-act="view" data-id="${p.id}">
+            <span class="ph"><img src="${urlOf(p, 'thumb')}" loading="lazy" alt="">${p.decorated ? '<i>🎨 꾸밈</i>' : ''}</span>
+            <span class="pdate">${when}</span>
+            <span class="ploc">📍 ${esc(p.place || matchPhoto(d).place)}</span>
+            ${p.caption ? `<span class="pcap">${esc(p.caption)}</span>` : ''}
+          </button>`;
+        }).join('')}</div></div>`;
+    }
+  }
+  $('#view-album').innerHTML = html;
+}
+
+function viewPhoto(id) {
+  const p = photos.find(x => x.id === id); if (!p) return;
+  const d = new Date(p.time);
+  const m = matchPhoto(d);
+  const places = [...new Set(flat().map(i => i.place))];
+  const ll = m.item ? startLL(m.item) : null;
+  openModal(`<img class="big" src="${urlOf(p, 'full')}" alt="">
+    ${p.caption ? `<div class="cap">${esc(p.caption)}</div>` : ''}
+    <button class="btn primary" id="pdeco" style="width:100%;margin-bottom:12px">🎨 꾸미기 (스티커 · 글자 · 펜)</button>
+    <div class="auto">🤖 자동 위치: <b>${esc(m.place)}</b><br><small>${esc(m.how)}</small>
+      ${ll && m.item.mode !== 'train' ? `<br><a href="${nMap(m.item.place, ll)}" ${NT}>네이버지도에서 보기 ↗</a>` : ''}</div>
+    <form id="pf">
+      <label>글<textarea name="caption" rows="2" maxlength="300" placeholder="사진에 대한 글 (선택)">${esc(p.caption || '')}</textarea></label>
+      <label>찍은 시간 <small>· ${p.src === 'exif' ? '사진 정보(EXIF)에서 읽었어요' : (p.src === 'manual' ? '직접 고친 시간이에요' : '사진에 촬영 정보가 없어 파일 시간을 썼어요')}</small>
+        <input type="datetime-local" name="time" value="${localInput(d)}"></label>
+      <label>위치 <small>· 비워 두면 일정 기준으로 자동 입력</small>
+        <input name="place" list="places" value="${esc(p.place)}" placeholder="${esc(m.place)}"></label>
+      <datalist id="places">${places.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <div class="actions">
+        <button type="button" class="btn danger" id="pdel">삭제</button>
+        <a class="btn ghost" href="${urlOf(p, 'full')}" download="busan-${localInput(d).replace(/[:T-]/g, '')}.jpg">다운로드</a>
+        <span class="sp"></span>
+        <button type="button" class="btn primary" data-save>저장</button>
+      </div>
+    </form>`);
+  bindSave($('#pf'), async e => {
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(e.target));
+    if (v.time) { const nd = new Date(v.time); if (!isNaN(nd)) { if (nd.getTime() !== d.getTime()) p.src = 'manual'; p.time = nd.toISOString(); } }
+    p.place = v.place.trim();
+    p.caption = (v.caption || '').trim();
+    await PDB.put(p); closeModal(); renderAlbum(); toast('사진 정보를 저장했어요');
+  });
+  $('#pdeco').addEventListener('click', () => { closeModal(); openDecorate(p); });
+  $('#pdel').addEventListener('click', async () => {
+    if (!(await askConfirm('이 사진을 삭제할까요?', '삭제', true))) return;
+    await PDB.del(p.id); photos = photos.filter(x => x.id !== p.id); dropUrls(p.id);
+    closeModal(); renderAlbum(); toast('삭제했어요');
+  });
+}
+
+/* ================= 편집기 공통 ================= */
+const ED = { mode: null, c: null, ctx: null, ptrs: new Map() };
+ED.c = $('#ed-canvas'); ED.ctx = ED.c.getContext('2d', { willReadFrequently: true });
+
+function loadImg(src) {
+  return new Promise((res, rej) => {
+    const url = src instanceof Blob ? URL.createObjectURL(src) : src;
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = () => rej(new Error('이미지를 열 수 없어요'));
+    img.src = url;
+  });
+}
+function openEditor(title, saveLabel) {
+  $('#ed-title').textContent = title; $('#ed-save').textContent = saveLabel || '저장';
+  $('#editor').classList.remove('hidden'); document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => requestAnimationFrame(fitCanvas));
+}
+function closeEditor() {
+  $('#editor').classList.add('hidden'); document.body.style.overflow = '';
+  ED.mode = null; ED.ptrs.clear(); $('#ed-panel').innerHTML = '';
+}
+function fitCanvas() {
+  const st = $('#ed-stage'), c = ED.c;
+  if (!c.width) return;
+  const r = Math.min((st.clientWidth - 20) / c.width, (st.clientHeight - 20) / c.height);
+  c.style.width = Math.floor(c.width * r) + 'px'; c.style.height = Math.floor(c.height * r) + 'px';
+}
+window.addEventListener('resize', () => { if (ED.mode) fitCanvas(); });
+function cxy(e) { const r = ED.c.getBoundingClientRect(); return [(e.clientX - r.left) * ED.c.width / r.width, (e.clientY - r.top) * ED.c.height / r.height]; }
+const pxScale = () => ED.c.width / ED.c.getBoundingClientRect().width;
+
+ED.c.addEventListener('pointerdown', e => { e.preventDefault(); ED.c.setPointerCapture(e.pointerId); ED.ptrs.set(e.pointerId, cxy(e));
+  if (ED.mode === 'sticker') smDown(e); else if (ED.mode === 'deco') dcDown(e); });
+ED.c.addEventListener('pointermove', e => { if (!ED.ptrs.has(e.pointerId)) return; ED.ptrs.set(e.pointerId, cxy(e));
+  if (ED.mode === 'sticker') smMove(e); else if (ED.mode === 'deco') dcMove(e); });
+const ptrUp = e => { if (!ED.ptrs.has(e.pointerId)) return; ED.ptrs.delete(e.pointerId);
+  if (ED.mode === 'sticker') smUp(e); else if (ED.mode === 'deco') dcUp(e); };
+ED.c.addEventListener('pointerup', ptrUp); ED.c.addEventListener('pointercancel', ptrUp);
+$('#ed-cancel').addEventListener('click', async () => { if (await askConfirm('저장하지 않고 닫을까요?', '닫기')) closeEditor(); });
+$('#ed-save').addEventListener('click', () => { if (ED.mode === 'sticker') smSave(); else if (ED.mode === 'deco') dcSave(); });
+
+/* ================= 스티커 만들기 (배경 지우기) ================= */
+const SM = {};
+function stickerSourcePicker() {
+  const list = photos.slice().sort((a, b) => new Date(b.time) - new Date(a.time));
+  openModal(`<h3>✨ 스티커 만들기</h3>
+    <p class="hint" style="margin:0 0 10px">스티커로 만들 사진을 골라 주세요. 배경을 지우면 내 스티커로 저장돼요.</p>
+    <button class="btn primary" id="stk-pick-file" style="width:100%">📁 휴대폰 앨범에서 고르기</button>
+    ${list.length ? `<p class="hint" style="margin:14px 0 0;font-weight:700">또는 사진첩 사진에서 고르기</p>
+      <div class="pick-grid">${list.map(p => `<button data-pid="${p.id}"><img src="${urlOf(p, 'thumb')}" alt=""></button>`).join('')}</div>` : ''}
+    <div class="actions" style="margin-top:12px"><span class="sp"></span><button class="btn ghost" data-act="close">닫기</button></div>`);
+  $('#stk-pick-file').addEventListener('click', () => { closeModal(); $('#stk-file').click(); });
+  $('#sheet').querySelectorAll('[data-pid]').forEach(b => b.addEventListener('click', () => {
+    const p = photos.find(x => x.id === b.dataset.pid); closeModal(); if (p) startSticker(p.full);
+  }));
+}
+async function startSticker(blob) {
+  let img;
+  try { img = await loadImg(blob); } catch (e) { return toast(e.message); }
+  const max = 720, r = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * r), h = Math.round(img.naturalHeight * r);
+  ED.c.width = w; ED.c.height = h;
+  ED.ctx.clearRect(0, 0, w, h); ED.ctx.drawImage(img, 0, 0, w, h);
+  SM.w = w; SM.h = h;
+  SM.orig = ED.ctx.getImageData(0, 0, w, h);
+  SM.view = new ImageData(new Uint8ClampedArray(SM.orig.data), w, h);
+  SM.mask = new Uint8Array(w * h).fill(255);
+  SM.undo = []; SM.tool = 'wand'; SM.tol = 40; SM.brush = 24; SM.outline = true; SM.busy = false;
+  ED.mode = 'sticker';
+  ED.c.classList.add('checker');
+  smPanel(); smRender();
+  openEditor('✨ 스티커 만들기', '스티커 저장');
+}
+function smRender() {
+  const o = SM.orig.data, v = SM.view.data, m = SM.mask;
+  for (let i = 0, j = 3; i < m.length; i++, j += 4) v[j] = m[i] ? o[j] : 0;
+  ED.ctx.putImageData(SM.view, 0, 0);
+}
+function smPush() { SM.undo.push(SM.mask.slice()); if (SM.undo.length > 15) SM.undo.shift(); }
+function smMsg(t) { const el = $('#sm-msg'); if (el) el.textContent = t; }
+function smPanel() {
+  $('#ed-panel').innerHTML = `
+    <div class="tools">
+      <button class="tool ai" data-t="ai">🤖 AI로 배경 자동 지우기</button>
+      <button class="tool" data-t="auto">🪄 테두리 배경 지우기</button>
+    </div>
+    <div class="tools" style="margin-top:8px">
+      ${[['wand', '🎯 눌러서 지우기'], ['erase', '🧽 지우개'], ['restore', '🖌️ 되살리기']].map(([k, l]) => `<button class="tool ${SM.tool === k ? 'on' : ''}" data-t="${k}">${l}</button>`).join('')}
+      <button class="tool" data-t="undo">↩ 되돌리기</button>
+      <button class="tool" data-t="reset">처음부터</button>
+    </div>
+    <label class="sl">비슷한 색 범위 <input type="range" id="sm-tol" min="5" max="120" value="${SM.tol}"></label>
+    <label class="sl">붓 크기 <input type="range" id="sm-brush" min="6" max="90" value="${SM.brush}"></label>
+    <label class="sl"><input type="checkbox" id="sm-outline" ${SM.outline ? 'checked' : ''} style="flex:none;width:18px;height:18px;accent-color:var(--sky)"> 흰 테두리 넣기 (스티커 느낌)</label>
+    <p class="ed-msg" id="sm-msg">지울 배경을 손가락으로 눌러 보세요. 남길 부분까지 지워지면 '비슷한 색 범위'를 줄이거나 🖌️ 되살리기로 칠해 주세요.</p>`;
+}
+$('#ed-panel').addEventListener('click', e => {
+  if (ED.mode === 'sticker') {
+    const b = e.target.closest('[data-t]'); if (!b) return;
+    const t = b.dataset.t;
+    if (t === 'ai') return smAI();
+    if (t === 'auto') { smPush(); smAuto(); smRender(); smMsg('테두리와 이어진 배경을 지웠어요. 남은 부분은 눌러서 지우거나 지우개로 정리해 주세요.'); return; }
+    if (t === 'undo') { if (SM.undo.length) { SM.mask = SM.undo.pop(); smRender(); } else toast('되돌릴 게 없어요'); return; }
+    if (t === 'reset') { smPush(); SM.mask.fill(255); smRender(); return; }
+    SM.tool = t; $('#ed-panel').querySelectorAll('[data-t]').forEach(x => x.classList.toggle('on', x.dataset.t === t));
+    smMsg({ wand: '지울 배경을 눌러 주세요. 비슷한 색이 이어진 부분이 한 번에 지워져요.', erase: '문질러서 지워요.', restore: '지워진 곳을 문지르면 다시 살아나요.' }[t]);
+  } else if (ED.mode === 'deco') dcPanelClick(e);
+});
+$('#ed-panel').addEventListener('input', e => {
+  if (ED.mode === 'sticker') {
+    if (e.target.id === 'sm-tol') SM.tol = +e.target.value;
+    if (e.target.id === 'sm-brush') SM.brush = +e.target.value;
+    if (e.target.id === 'sm-outline') SM.outline = e.target.checked;
+  } else if (ED.mode === 'deco') dcPanelInput(e);
+});
+
+/* 색이 비슷하게 이어진 영역 지우기 (flood fill) */
+function smFlood(seeds, visited) {
+  const { w, h } = SM, d = SM.orig.data, m = SM.mask, thr = SM.tol * 3;
+  const q = new Int32Array(w * h);
+  for (const s of seeds) {
+    if (visited[s]) continue;
+    const r0 = d[s * 4], g0 = d[s * 4 + 1], b0 = d[s * 4 + 2];
+    let head = 0, tail = 0; q[tail++] = s; visited[s] = 1;
+    while (head < tail) {
+      const p = q[head++]; m[p] = 0;
+      const x = p % w, y = (p - x) / w;
+      const nb = [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1];
+      for (const k of nb) {
+        if (k < 0 || visited[k]) continue;
+        const dd = Math.abs(d[k * 4] - r0) + Math.abs(d[k * 4 + 1] - g0) + Math.abs(d[k * 4 + 2] - b0);
+        if (dd <= thr) { visited[k] = 1; q[tail++] = k; }
+      }
+    }
+  }
+}
+function smAuto() {
+  const { w, h } = SM, seeds = [];
+  for (let x = 0; x < w; x += 2) { seeds.push(x, (h - 1) * w + x); }
+  for (let y = 0; y < h; y += 2) { seeds.push(y * w, y * w + w - 1); }
+  smFlood(seeds, new Uint8Array(w * h));
+}
+let smLast = null;
+function smPaint(x, y) {
+  const { w, h } = SM, rr = SM.brush * pxScale() / 2, val = SM.tool === 'erase' ? 0 : 255;
+  const pts = [];
+  if (smLast) { const steps = Math.max(1, Math.ceil(Math.hypot(x - smLast[0], y - smLast[1]) / (rr / 2))); for (let i = 1; i <= steps; i++) pts.push([smLast[0] + (x - smLast[0]) * i / steps, smLast[1] + (y - smLast[1]) * i / steps]); }
+  else pts.push([x, y]);
+  for (const [px, py] of pts) {
+    const x0 = Math.max(0, Math.floor(px - rr)), x1 = Math.min(w - 1, Math.ceil(px + rr));
+    const y0 = Math.max(0, Math.floor(py - rr)), y1 = Math.min(h - 1, Math.ceil(py + rr));
+    for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++)
+      if ((xx - px) ** 2 + (yy - py) ** 2 <= rr * rr) SM.mask[yy * w + xx] = val;
+  }
+  smLast = [x, y];
+}
+function smDown(e) {
+  if (SM.busy) return;
+  const [x, y] = cxy(e);
+  smPush();
+  if (SM.tool === 'wand') {
+    const px = Math.max(0, Math.min(SM.w - 1, Math.round(x))), py = Math.max(0, Math.min(SM.h - 1, Math.round(y)));
+    smFlood([py * SM.w + px], new Uint8Array(SM.w * SM.h)); smRender();
+  } else { smLast = null; smPaint(x, y); smRender(); }
+}
+function smMove(e) { if (SM.tool === 'wand' || SM.busy) return; const [x, y] = cxy(e); smPaint(x, y); smRender(); }
+function smUp() { smLast = null; }
+
+/* AI 배경 지우기: @imgly/background-removal (처음 사용 시 모델 파일을 내려받음) */
+async function smAI() {
+  if (SM.busy) return;
+  if (!(await askConfirm('AI 배경 지우기는 처음 쓸 때 수십 MB 크기의 모델을 내려받아요. 와이파이에서 쓰는 걸 추천해요. 계속할까요?', '계속'))) return;
+  SM.busy = true; smMsg('AI 불러오는 중… 처음엔 시간이 꽤 걸릴 수 있어요.');
+  try {
+    const mod = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm');
+    const tmp = document.createElement('canvas'); tmp.width = SM.w; tmp.height = SM.h;
+    tmp.getContext('2d').putImageData(SM.orig, 0, 0);
+    const src = await new Promise(r => tmp.toBlob(r, 'image/png'));
+    const out = await mod.removeBackground(src, {
+      model: 'isnet_quint8', output: { format: 'image/png' },
+      progress: (k, c, t) => { if (t) smMsg(`AI 모델 받는 중… ${Math.round(c / t * 100)}%`); }
+    });
+    const img = await loadImg(out);
+    const t2 = document.createElement('canvas'); t2.width = SM.w; t2.height = SM.h;
+    const c2 = t2.getContext('2d'); c2.drawImage(img, 0, 0, SM.w, SM.h);
+    const a = c2.getImageData(0, 0, SM.w, SM.h).data;
+    smPush();
+    for (let i = 0; i < SM.mask.length; i++) SM.mask[i] = a[i * 4 + 3] > 110 ? 255 : 0;
+    smRender(); smMsg('AI가 배경을 지웠어요! 남은 부분은 지우개나 되살리기로 다듬어 주세요.');
+  } catch (e) {
+    console.warn(e);
+    smMsg('AI 배경 지우기를 불러오지 못했어요(인터넷 연결이나 브라우저 문제일 수 있어요). 🪄 테두리 배경 지우기나 🎯 눌러서 지우기를 써 주세요.');
+  }
+  SM.busy = false;
+}
+
+async function smSave() {
+  const { w, h } = SM, m = SM.mask, o = SM.orig.data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (m[i] && o[i * 4 + 3] > 10) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 < 0) return toast('남은 부분이 없어요. 되돌리기를 눌러 주세요.');
+  smRender();
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+  const cut = document.createElement('canvas'); cut.width = bw; cut.height = bh;
+  cut.getContext('2d').drawImage(ED.c, x0, y0, bw, bh, 0, 0, bw, bh);
+  const t = SM.outline ? Math.round(Math.max(bw, bh) * 0.025) + 3 : 2;
+  const out = document.createElement('canvas'); out.width = bw + t * 2; out.height = bh + t * 2;
+  const oc = out.getContext('2d');
+  if (SM.outline) {
+    for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2; oc.drawImage(cut, t + Math.cos(a) * t, t + Math.sin(a) * t); }
+    oc.globalCompositeOperation = 'source-in'; oc.fillStyle = '#fff'; oc.fillRect(0, 0, out.width, out.height);
+    oc.globalCompositeOperation = 'source-over';
+  }
+  oc.drawImage(cut, t, t);
+  let fin = out;
+  const r = Math.min(1, 512 / Math.max(out.width, out.height));
+  if (r < 1) { fin = document.createElement('canvas'); fin.width = Math.round(out.width * r); fin.height = Math.round(out.height * r); fin.getContext('2d').drawImage(out, 0, 0, fin.width, fin.height); }
+  const blob = await new Promise(res => fin.toBlob(res, 'image/png'));
+  const s = { id: uid(), blob, w: fin.width, h: fin.height, createdAt: Date.now() };
+  try { await PDB.put(s, 'stickers'); } catch (e) { return toast('스티커를 저장하지 못했어요'); }
+  stickers.push(s);
+  ED.c.classList.remove('checker');
+  closeEditor(); renderAlbum(); toast('내 스티커에 저장했어요 🏷️');
+}
+
+function viewSticker(id) {
+  const s = stickers.find(x => x.id === id); if (!s) return;
+  openModal(`<h3>🏷️ 내 스티커</h3>
+    <div class="checker" style="border-radius:14px;padding:16px;margin-bottom:12px"><img src="${urlOf(s, 'blob')}" alt="" style="display:block;max-width:100%;max-height:45vh;margin:0 auto"></div>
+    <div class="actions">
+      <button class="btn danger" id="sdel">삭제</button>
+      <a class="btn ghost" href="${urlOf(s, 'blob')}" download="sticker-${s.id}.png">다운로드</a>
+      <span class="sp"></span><button class="btn primary" data-act="close">닫기</button>
+    </div>`);
+  $('#sdel').addEventListener('click', async () => {
+    if (!(await askConfirm('이 스티커를 삭제할까요? (이미 꾸며서 저장한 사진은 그대로예요)', '삭제', true))) return;
+    await PDB.del(s.id, 'stickers'); stickers = stickers.filter(x => x.id !== s.id);
+    const u = urls.get(s.id + 'blob'); if (u) URL.revokeObjectURL(u); urls.delete(s.id + 'blob');
+    closeModal(); renderAlbum(); toast('삭제했어요');
+  });
+}
+
+/* ================= 사진 꾸미기 (스티커 · 글자 · 펜) ================= */
+const DC = { layers: [], sel: -1, pen: false, sub: null, penColor: '#ffffff', penW: 8, newColor: '#ffffff', newStroke: true };
+const COLORS = ['#ffffff', '#0f172a', '#0ea5e9', '#facc15', '#f472b6', '#ef4444', '#22c55e', '#a855f7'];
+const EMOJIS = ['❤️', '⭐', '✨', '🌊', '🏖️', '😎', '🥰', '🎢', '🚄', '🐟', '🍜', '🥩', '📸', '👍', '🔥', '🎉', '💙', '☁️'];
+const FONT = '"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif';
+
+async function openDecorate(p) {
+  let img;
+  try { img = await loadImg(urlOf(p, 'full')); } catch (e) { return toast(e.message); }
+  ED.c.classList.remove('checker');
+  ED.c.width = img.naturalWidth; ED.c.height = img.naturalHeight;
+  Object.assign(DC, { base: img, photo: p, layers: [], sel: -1, pen: false, sub: null, drag: null, pinch: null });
+  DC.penW = Math.round(img.naturalWidth / 120);
+  ED.mode = 'deco';
+  dcRender(); dcPanel();
+  openEditor('🎨 사진 꾸미기', '저장');
+}
+function lsize(l, ctx) {
+  if (l.type === 'img') return [l.size, l.size * l.img.naturalHeight / l.img.naturalWidth];
+  ctx.font = `900 ${l.size}px ${FONT}`;
+  return [Math.max(ctx.measureText(l.text).width, l.size * 0.6), l.size * 1.2];
+}
+function dcRender(noSel) {
+  const ctx = ED.ctx, c = ED.c;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.drawImage(DC.base, 0, 0);
+  DC.layers.forEach((l, i) => {
+    ctx.save();
+    if (l.type === 'path') {
+      ctx.strokeStyle = l.color; ctx.lineWidth = l.w; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); l.pts.forEach((p, k) => k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+      if (l.pts.length === 1) ctx.lineTo(l.pts[0][0] + 0.1, l.pts[0][1]);
+      ctx.stroke(); ctx.restore(); return;
+    }
+    ctx.translate(l.x, l.y); ctx.rotate(l.rot);
+    const [w, h] = lsize(l, ctx);
+    if (l.type === 'img') ctx.drawImage(l.img, -w / 2, -h / 2, w, h);
+    else {
+      ctx.font = `900 ${l.size}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (l.stroke) { ctx.lineWidth = l.size * 0.16; ctx.lineJoin = 'round'; ctx.strokeStyle = l.color === '#0f172a' ? '#ffffff' : '#0f172a'; ctx.strokeText(l.text, 0, 0); }
+      ctx.fillStyle = l.color; ctx.fillText(l.text, 0, 0);
+    }
+    if (!noSel && i === DC.sel) {
+      ctx.setLineDash([c.width / 80, c.width / 120]); ctx.lineWidth = Math.max(2, c.width / 400); ctx.strokeStyle = '#0ea5e9';
+      ctx.strokeRect(-w / 2 - 8, -h / 2 - 8, w + 16, h + 16);
+    }
+    ctx.restore();
+  });
+}
+function dcHit(x, y) {
+  for (let i = DC.layers.length - 1; i >= 0; i--) {
+    const l = DC.layers[i]; if (l.type === 'path') continue;
+    const [w, h] = lsize(l, ED.ctx);
+    const dx = x - l.x, dy = y - l.y, cs = Math.cos(l.rot), sn = Math.sin(l.rot);
+    const lx = dx * cs + dy * sn, ly = -dx * sn + dy * cs;
+    const pad = 14 * pxScale();
+    if (Math.abs(lx) <= w / 2 + pad && Math.abs(ly) <= h / 2 + pad) return i;
+  }
+  return -1;
+}
+function dcDown(e) {
+  const [x, y] = cxy(e);
+  if (DC.pen) { DC.layers.push({ type: 'path', pts: [[x, y]], color: DC.penColor, w: DC.penW }); DC.drawing = true; dcRender(); return; }
+  if (ED.ptrs.size === 2 && DC.sel >= 0) {
+    const [a, b] = [...ED.ptrs.values()], l = DC.layers[DC.sel];
+    DC.pinch = { d0: Math.hypot(b[0] - a[0], b[1] - a[1]), a0: Math.atan2(b[1] - a[1], b[0] - a[0]), s0: l.size, r0: l.rot };
+    DC.drag = null; return;
+  }
+  if (ED.ptrs.size > 1) return;
+  const i = dcHit(x, y);
+  const changed = i !== DC.sel;
+  DC.sel = i;
+  if (i >= 0) { const l = DC.layers[i]; DC.drag = { ox: x - l.x, oy: y - l.y }; DC.sub = null; }
+  dcRender(); if (changed) dcPanel();
+}
+function dcMove(e) {
+  if (DC.pen && DC.drawing) { const last = DC.layers[DC.layers.length - 1]; last.pts.push(cxy(e)); dcRender(); return; }
+  const l = DC.layers[DC.sel]; if (!l) return;
+  if (DC.pinch && ED.ptrs.size >= 2) {
+    const [a, b] = [...ED.ptrs.values()];
+    l.size = Math.max(10, DC.pinch.s0 * Math.hypot(b[0] - a[0], b[1] - a[1]) / DC.pinch.d0);
+    l.rot = DC.pinch.r0 + Math.atan2(b[1] - a[1], b[0] - a[0]) - DC.pinch.a0;
+    dcRender(); return;
+  }
+  if (DC.drag) { const [x, y] = cxy(e); l.x = x - DC.drag.ox; l.y = y - DC.drag.oy; dcRender(); }
+}
+function dcUp() {
+  if (DC.drawing) { DC.drawing = false; return; }
+  if (ED.ptrs.size < 2) DC.pinch = null;
+  if (ED.ptrs.size === 0) { DC.drag = null; dcPanel(); }
+}
+function addLayer(l) {
+  DC.layers.push({ x: ED.c.width / 2, y: ED.c.height / 2, rot: 0, ...l });
+  DC.sel = DC.layers.length - 1; DC.pen = false; DC.sub = null;
+  dcRender(); dcPanel();
+}
+const swatches = (cur, key) => `<div class="colors">${COLORS.map(c => `<button class="sw ${c === cur ? 'on' : ''}" style="background:${c}" data-color="${c}" data-key="${key}"></button>`).join('')}</div>`;
+
+function dcPanel() {
+  const l = DC.layers[DC.sel];
+  const W = ED.c.width;
+  let sub = '';
+  if (DC.sub === 'sticker') {
+    sub = `<p class="ed-msg" style="margin-top:12px;font-weight:700">이모지 스티커</p>
+      <div class="emojis">${EMOJIS.map(em => `<button data-emoji="${em}">${em}</button>`).join('')}</div>
+      <p class="ed-msg" style="font-weight:700">내 스티커</p>
+      ${stickers.length ? `<div class="stk-strip">${stickers.map(s => `<button class="stk" data-stk="${s.id}"><img src="${urlOf(s, 'blob')}" alt=""></button>`).join('')}</div>`
+        : `<p class="ed-msg">아직 없어요. 사진첩의 ✨ 스티커 추가하기로 만들 수 있어요.</p>`}`;
+  } else if (DC.sub === 'text') {
+    sub = `<input type="text" id="dc-newtext" placeholder="넣을 글자를 입력하세요 (예: 부산 최고!)" maxlength="40">
+      ${swatches(DC.newColor, 'new')}
+      <label class="sl"><input type="checkbox" id="dc-newstroke" ${DC.newStroke ? 'checked' : ''} style="flex:none;width:18px;height:18px;accent-color:var(--sky)"> 글자 테두리</label>
+      <div class="actions" style="margin-top:10px"><span class="sp"></span><button class="btn primary sm" data-d="text-add">글자 넣기</button></div>`;
+  } else if (DC.pen) {
+    sub = `<p class="ed-msg">사진 위에 손가락으로 그려 보세요.</p>${swatches(DC.penColor, 'pen')}
+      <label class="sl">펜 굵기 <input type="range" id="dc-penw" min="${Math.max(2, Math.round(W / 400))}" max="${Math.round(W / 25)}" value="${DC.penW}"></label>`;
+  } else if (l) {
+    sub = `<label class="sl">크기 <input type="range" id="dc-size" min="${Math.round(W / 40)}" max="${Math.round(W * 1.2)}" value="${Math.round(l.size)}"></label>
+      <label class="sl">회전 <input type="range" id="dc-rot" min="-180" max="180" value="${Math.round(l.rot * 180 / Math.PI)}"></label>
+      ${l.type === 'text' && !l.emoji ? `<input type="text" id="dc-text" value="${esc(l.text)}" maxlength="40">${swatches(l.color, 'sel')}
+        <label class="sl"><input type="checkbox" id="dc-stroke" ${l.stroke ? 'checked' : ''} style="flex:none;width:18px;height:18px;accent-color:var(--sky)"> 글자 테두리</label>` : ''}
+      <div class="actions" style="margin-top:10px">
+        <button class="tool" data-d="front">⬆ 맨 앞으로</button><button class="tool" data-d="dup">⧉ 복사</button>
+        <span class="sp"></span><button class="btn danger sm" data-d="del">삭제</button></div>
+      <p class="ed-msg">끌어서 옮기고, 두 손가락으로 크기·회전을 바꿀 수 있어요.</p>`;
+  } else {
+    sub = `<p class="ed-msg">🏷️ 스티커나 🔤 글자를 넣고, 끌어서 옮겨 보세요. 두 손가락으로 크기와 회전을 바꿀 수 있어요. 저장하면 꾸민 사진이 <b>새로</b> 저장되고 원본은 그대로 남아요.</p>`;
+  }
+  $('#ed-panel').innerHTML = `<div class="tools">
+      <button class="tool ${DC.sub === 'sticker' ? 'on' : ''}" data-d="sticker">🏷️ 스티커</button>
+      <button class="tool ${DC.sub === 'text' ? 'on' : ''}" data-d="text">🔤 글자</button>
+      <button class="tool ${DC.pen ? 'on' : ''}" data-d="pen">✏️ 펜</button>
+      <button class="tool" data-d="undo">↩ 되돌리기</button>
+    </div>${sub}`;
+}
+function dcPanelClick(e) {
+  const t = e.target.closest('button'); if (!t) return;
+  const l = DC.layers[DC.sel];
+  if (t.dataset.color) {
+    const c = t.dataset.color, k = t.dataset.key;
+    if (k === 'pen') DC.penColor = c; else if (k === 'new') DC.newColor = c; else if (l) l.color = c;
+    t.parentElement.querySelectorAll('.sw').forEach(s => s.classList.toggle('on', s === t));
+    dcRender(); return;
+  }
+  if (t.dataset.emoji) return addLayer({ type: 'text', text: t.dataset.emoji, emoji: true, color: '#000', stroke: false, size: Math.round(ED.c.width / 6) });
+  if (t.dataset.stk) {
+    const s = stickers.find(x => x.id === t.dataset.stk); if (!s) return;
+    loadImg(urlOf(s, 'blob')).then(img => addLayer({ type: 'img', img, size: Math.round(ED.c.width * 0.35) })).catch(() => toast('스티커를 불러오지 못했어요'));
+    return;
+  }
+  const d = t.dataset.d; if (!d) return;
+  if (d === 'sticker' || d === 'text') { DC.sub = DC.sub === d ? null : d; DC.pen = false; DC.sel = -1; dcRender(); dcPanel();
+    if (DC.sub === 'text') setTimeout(() => $('#dc-newtext')?.focus(), 50); }
+  else if (d === 'pen') { DC.pen = !DC.pen; DC.sub = null; DC.sel = -1; dcRender(); dcPanel(); }
+  else if (d === 'undo') { if (DC.layers.length) { DC.layers.pop(); DC.sel = -1; dcRender(); dcPanel(); } else toast('되돌릴 게 없어요'); }
+  else if (d === 'text-add') {
+    const v = ($('#dc-newtext').value || '').trim(); if (!v) return toast('글자를 입력해 주세요');
+    addLayer({ type: 'text', text: v, color: DC.newColor, stroke: DC.newStroke, size: Math.round(ED.c.width / 10) });
+  }
+  else if (d === 'del' && l) { DC.layers.splice(DC.sel, 1); DC.sel = -1; dcRender(); dcPanel(); }
+  else if (d === 'front' && l) { DC.layers.splice(DC.sel, 1); DC.layers.push(l); DC.sel = DC.layers.length - 1; dcRender(); }
+  else if (d === 'dup' && l) { addLayer({ ...l, x: l.x + ED.c.width / 20, y: l.y + ED.c.width / 20 }); }
+}
+function dcPanelInput(e) {
+  const l = DC.layers[DC.sel], id = e.target.id;
+  if (id === 'dc-penw') DC.penW = +e.target.value;
+  else if (id === 'dc-newstroke') DC.newStroke = e.target.checked;
+  else if (l && id === 'dc-size') l.size = +e.target.value;
+  else if (l && id === 'dc-rot') l.rot = +e.target.value * Math.PI / 180;
+  else if (l && id === 'dc-text') l.text = e.target.value || ' ';
+  else if (l && id === 'dc-stroke') l.stroke = e.target.checked;
+  dcRender();
+}
+async function dcSave() {
+  if (!DC.layers.length) return toast('아직 꾸민 게 없어요');
+  dcRender(true);
+  const full = await new Promise(r => ED.c.toBlob(r, 'image/jpeg', 0.9));
+  if (!full) return toast('저장하지 못했어요');
+  const thumb = await resize(full, 480, 0.75);
+  const src = DC.photo;
+  const p = { id: uid(), time: src.time, src: src.src, full, thumb, place: src.place || '', caption: src.caption || '', name: 'deco-' + (src.name || ''), decorated: true, from: src.id, addedAt: Date.now() };
+  try { await PDB.put(p); } catch (e) { return toast('저장 공간이 부족해서 저장하지 못했어요'); }
+  photos.push(p);
+  closeEditor(); renderAlbum(); toast('꾸민 사진을 저장했어요 (원본도 그대로 있어요)');
+}
+
+/* ================= 탭 & 이벤트 ================= */
+let curTab = 'schedule';
+function setTab(t) {
+  curTab = t;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  ['schedule', 'map', 'album'].forEach(v => $('#view-' + v).classList.toggle('hidden', v !== t));
+  $('#fab').classList.toggle('hidden', t !== 'album');
+  if (t === 'album') renderAlbum(); else if (t === 'map') renderMap(); else renderSchedule();
+  try { history.replaceState(null, '', t === 'schedule' ? '#' : '#' + t); } catch (e) {}
+  window.scrollTo({ top: 0 });
+}
+
+document.addEventListener('click', e => {
+  if (alertCfg.on) unlockAudio();   // 소리 알림은 화면을 한 번 눌러야 재생 허용됨
+  const tab = e.target.closest('.tab'); if (tab) return setTab(tab.dataset.tab);
+  const dt = e.target.closest('[data-dtab]');
+  if (dt) { schedDay = +dt.dataset.dtab; renderSchedule(); document.getElementById('daytabs')?.scrollIntoView({ block: 'start' }); return; }
+  const nv = e.target.closest('a[data-nv]');
+  if (nv && IS_IOS) {   // iOS: 앱이 안 열리면 잠시 뒤 앱스토어(네이버 지도)로 이동
+    setTimeout(() => { if (!document.hidden) location.href = 'https://itunes.apple.com/app/id311867728?mt=8'; }, 1600);
+  }
+  if (e.target.closest('a')) return;
+  const b = e.target.closest('[data-act]'); if (!b || b.closest('#modal')) return;
+  const a = b.dataset.act;
+  if (a === 'edit') itemForm(+b.dataset.day, b.dataset.id);
+  else if (a === 'add') itemForm(+b.dataset.day, null);
+  else if (a === 'edit-meet') meetForm();
+  else if (a === 'route-me') routeMe(b.dataset.t);
+  else if (a === 'map-day') { mapDay = +b.dataset.day; $('#map-me').innerHTML = ''; renderMap(); }
+  else if (a === 'fly') {
+    const i = +b.dataset.i, s = mapStops[i];
+    if (map && s) { map.flyTo(s.ll, 16); mapMarkers[i]?.openPopup(); $('.map-card').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    else { const el = document.getElementById('stop-' + i); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1500); } }
+  }
+  else if (a === 'alert-toggle') toggleAlert();
+  else if (a === 'alarm-ok') closeAlarm();
+  else if (a === 'camera') $('#cam').click();
+  else if (a === 'sticker-new') stickerSourcePicker();
+  else if (a === 'sticker-view') viewSticker(b.dataset.id);
+  else if (a === 'locate') locateMe();
+  else if (a === 'sim-clear') { sim = null; try { localStorage.removeItem(SIM_KEY); } catch (er) {} renderSchedule(); toast('실제 시각으로 돌아왔어요'); }
+  else if (a === 'reset') { askConfirm('수정한 일정과 집합 공지를 모두 처음 상태로 되돌릴까요? (사진은 그대로예요)', '되돌리기', true).then(ok => { if (ok) { state = clone(DEFAULT_STATE); saveState(); meetRoute = ''; nowRoute = null; renderSchedule(); toast('처음 일정으로 되돌렸어요'); } }); }
+  else if (a === 'filter') { albumFilter = b.dataset.f; renderAlbum(); }
+  else if (a === 'view') viewPhoto(b.dataset.id);
+  else if (a === 'upload') $('#file').click();
+});
+$('#fab').addEventListener('click', () => $('#file').click());
+$('#file').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
+$('#cam').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
+$('#stk-file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) startSticker(f); });
+
+setInterval(() => {
+  if (!$('#modal').classList.contains('hidden') || ED.mode) return;
+  if (curTab === 'schedule') renderSchedule();
+}, 30000);
+setInterval(checkAlerts, 15000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  checkAlerts();
+});
+
+(async function init() {
+  await PDB.open();
+  photos = await PDB.all();
+  stickers = await PDB.all('stickers');
+  setTimeout(checkAlerts, 1500);
+  const h = location.hash.slice(1);
+  setTab(['map', 'album'].includes(h) ? h : 'schedule');
+})();
+</script>
+</body>
+</html>
