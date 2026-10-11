@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
 <title>부산 수학여행</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="부산 수학여행">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
   :root{
@@ -1092,14 +1096,49 @@ const cleanLead = v => { v = Math.round(+v); return v >= 1 && v <= 180 ? v : nul
 alertCfg.leads = [cleanLead(Array.isArray(alertCfg.leads) ? alertCfg.leads[0] : null) || 10];
 /* 알림 켜기/시간 바꾸기 (이미 지난 알림은 울리지 않게 표시) */
 async function setAlert(on, lead) {
-  const was = alertCfg.on;
+  const was = alertCfg.on, oldLead = alertCfg.leads[0];
+  let perm = null;
   alertCfg.on = on; alertCfg.leads = [lead];
   if (on) {
     const n = now();
     for (const ev of meetEvents()) if (ev.when - lead * 60000 <= n) fired[firedKey(ev, lead)] = Date.now();
-    if (!was) { unlockAudio(); try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {}); } catch (e) {} }   // 권한 창을 기다리지 않고 바로 저장
+    if (!was) { unlockAudio(); try { if ('Notification' in window && Notification.permission === 'default') perm = Notification.requestPermission(); } catch (e) {} }   // 권한 창을 기다리지 않고 바로 저장
   }
   saveAlert();
+  // 페이지가 닫혀 있어도 오는 푸시 알림 등록/해제 (기다리지 않고 뒤에서 처리)
+  if (on !== was || lead !== oldLead) syncPush(perm, on).then(pushTip);
+}
+
+/* ================= 푸시 알림 (페이지가 닫혀 있어도) =================
+   · 서버(Supabase Edge Function)가 1분마다 집합 시간을 확인해서 이 기기로 푸시를 보내요.
+   · 아래 키는 공개용(VAPID public key)이에요. 비밀 키는 서버에만 있어요. */
+const PUSH_PUB = 'BI6fk6kpUp5s4qn7FcBfLBlxUQA8VLai88_jySTSxGJQVGnGay9bpmnjTPDWExcwVbPRzov7SFmXQbN3O-lNR-A';
+const IS_APP = (() => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } })();
+const pushOK = () => !!sb && location.protocol === 'https:' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const b64u = k => { const r = atob((k + '='.repeat((4 - k.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+let swReg = null;
+async function syncPush(perm, welcome) {
+  if (!pushOK()) return 'unsupported';
+  try {
+    swReg = swReg || await navigator.serviceWorker.register('sw.js');
+    let sub = await swReg.pushManager.getSubscription();
+    if (!alertCfg.on) { if (sub) await sb.rpc('delete_push_sub', { p_endpoint: sub.endpoint }); return 'off'; }
+    const p = perm ? await perm : Notification.permission;
+    if (p !== 'granted') return 'denied';
+    if (!sub) sub = await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(PUSH_PUB) });
+    const j = sub.toJSON();
+    const { error } = await sb.rpc('save_push_sub', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_lead: alertCfg.leads[0] });
+    if (error) throw error;
+    if (welcome) sb.functions.invoke('send-meet-alerts', { body: { welcome: j.endpoint } }).catch(() => {});
+    return 'on';
+  } catch (e) { console.warn('push', e); return 'error'; }
+}
+function pushTip(r) {
+  if (!alertCfg.on) return;
+  const msg = r === 'unsupported' ? (IS_IOS && !IS_APP ? '📱 아이폰은 사이트를 홈 화면에 추가하고 그 아이콘으로 열어야, 페이지를 닫아도 알림이 와요' : '이 브라우저는 페이지를 닫으면 알림을 받을 수 없어요. 페이지를 열어 두면 울려요')
+    : r === 'denied' ? '🔕 알림이 차단돼 있어요. 브라우저 설정에서 이 사이트 알림을 허용해 주세요'
+    : r === 'error' ? '⚠️ 푸시 알림 등록에 실패했어요. 인터넷 연결을 확인하고 알림을 다시 켜 주세요' : '';
+  if (msg) setTimeout(() => toast(msg), 2600);
 }
 
 /* 알림 대상: 집합 공지 + 일정별 집합 시간 */
@@ -2172,6 +2211,7 @@ document.addEventListener('visibilitychange', () => {
   setTimeout(checkAlerts, 1500);
   const h = location.hash.slice(1);
   setTab(['map', 'album'].includes(h) ? h : 'schedule');
+  if (alertCfg.on) syncPush();   // 알림 켜 둔 기기는 푸시 등록 상태를 다시 맞춰 둠
 })();
 </script>
 </body>
