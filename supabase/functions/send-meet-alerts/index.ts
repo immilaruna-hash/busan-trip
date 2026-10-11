@@ -65,15 +65,6 @@ Deno.serve(async (req) => {
     return json({ ok: r === "ok", result: r });
   }
 
-  // [임시] 테스트 푸시: delay초 뒤에 보냄 (다른 앱으로 넘어가서 확인할 수 있게)
-  if (body.test) {
-    const { data: sub } = await sb.from("push_subs").select("*").eq("endpoint", body.test).maybeSingle();
-    if (!sub) return json({ ok: false, result: "no-sub" }, 404);
-    await new Promise((r) => setTimeout(r, Math.min(20, Math.max(0, +body.delay || 0)) * 1000));
-    const r = await send(sub, { title: "🧪 푸시 알림 테스트", body: "이 알림이 보이면 성공이에요!", tag: "test" });
-    return json({ ok: r === "ok", result: r });
-  }
-
   // 예약 실행(1분마다)
   if (req.headers.get("x-cron-secret") !== cfg.cron_secret) return json({ error: "unauthorized" }, 401);
   const now = Date.now();

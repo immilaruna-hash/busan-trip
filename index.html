@@ -565,14 +565,9 @@ async function moveLocalPhotos() {
 }
 
 let state = loadState();
-/* [임시] 테스트용 시각 — 정한 시각부터 실제 시간처럼 흘러가요. 확인 끝나면 시간 확인 칸과 함께 지우기 */
-let sim = null, simAt = 0;   // sim: 정한 시각, simAt: 정한 순간의 실제 시각(ms)
-try { const v = JSON.parse(localStorage.getItem(SIM_KEY) || 'null'); if (v && v.t) { sim = v.t; simAt = v.at; } } catch (e) {}
-const now = () => sim ? new Date(new Date(sim).getTime() + (Date.now() - simAt)) : new Date();
-function setSim(v) {
-  sim = v || null; simAt = Date.now();
-  try { sim ? localStorage.setItem(SIM_KEY, JSON.stringify({ t: sim, at: simAt })) : localStorage.removeItem(SIM_KEY); } catch (e) {}
-}
+let sim = null;
+try { localStorage.removeItem(SIM_KEY); } catch (e) {}
+const now = () => new Date();
 
 function flat() {
   return state.days.flatMap((d, di) => d.items.map(it => ({
@@ -972,25 +967,9 @@ function renderSchedule() {
     html += `</section>`;
   });
 
-  /* [임시] 시간 확인 칸 — 확인 끝나면 지우기 */
-  html += `<section class="card settings" style="margin-top:24px">
-    <h2>⚙️ 시간 확인 <small style="font-weight:600;color:var(--muted)">(임시)</small></h2>
-    <label>테스트용 현재 시각 (여행 전에 화면 미리보기용)
-      <input type="datetime-local" id="sim" value="${sim ? localInput(now()) : ''}"></label>
-    <div class="actions" style="margin-top:10px">
-      <button class="btn ghost" data-act="sim-clear">실제 시각 사용</button>
-      <button class="btn primary" data-act="push-test">📲 10초 뒤 푸시 알림 테스트</button>
-    </div>
-    <p class="hint">${sim ? `⏱️ 테스트 시각이 흘러가는 중이에요: <b>${mdw(now())} ${hm(now())}</b><br>` : ''}테스트 시각은 이 기기 화면에만 적용돼요. 서버 푸시 알림은 실제 시각 기준이라, 푸시는 위 테스트 버튼으로 확인해 주세요.</p>
-  </section>`;
-
   const root = $('#view-schedule');
   root.innerHTML = html;
   fillLegs(root);
-  $('#sim').addEventListener('change', e => {
-    setSim(e.target.value);
-    renderSchedule();
-  });
 
   if (!scrolledOnce) {
     scrolledOnce = true;
@@ -1153,16 +1132,6 @@ async function syncPush(perm, welcome) {
     if (welcome) sb.functions.invoke('send-meet-alerts', { body: { welcome: j.endpoint } }).catch(() => {});
     return 'on';
   } catch (e) { console.warn('push', e); return 'error'; }
-}
-/* [임시] 푸시 테스트: 10초 뒤 서버가 이 기기로 테스트 알림을 보냄 */
-async function pushTest() {
-  if (!alertCfg.on) return toast('먼저 집합 공지 → 수정에서 알림을 켜 주세요');
-  const r = await syncPush(Notification.permission === 'default' ? Notification.requestPermission() : null, false);
-  if (r !== 'on') return pushTip(r, true);
-  const sub = await swReg.pushManager.getSubscription();
-  toast('10초 뒤에 알림이 와요. 지금 홈 화면이나 다른 앱으로 나가 보세요!');
-  const { data, error } = await sb.functions.invoke('send-meet-alerts', { body: { test: sub.endpoint, delay: 10 } });
-  if (error || !data || !data.ok) toast('⚠️ 서버가 알림을 보내지 못했어요 (' + ((data && data.result) || (error && error.message) || '오류') + ')');
 }
 function pushTip(r, now) {
   if (!alertCfg.on) return;
@@ -2185,8 +2154,6 @@ document.addEventListener('click', e => {
   else if (a === 'sticker-new') stickerSourcePicker();
   else if (a === 'sticker-view') viewSticker(b.dataset.id);
   else if (a === 'locate') locateMe();
-  else if (a === 'push-test') pushTest();
-  else if (a === 'sim-clear') { setSim(null); renderSchedule(); toast('실제 시각으로 돌아왔어요'); }
   else if (a === 'reset') { askConfirm('수정한 일정과 집합 공지를 모두 처음 상태로 되돌릴까요? (사진은 그대로예요)', '되돌리기', true).then(ok => { if (ok) { state = clone(DEFAULT_STATE); saveState(); meetRoute = ''; nowRoute = null; renderSchedule(); toast('처음 일정으로 되돌렸어요'); } }); }
   else if (a === 'filter') { albumFilter = b.dataset.f; renderAlbum(); }
   else if (a === 'view') viewPhoto(b.dataset.id);
@@ -2200,7 +2167,7 @@ $('#stk-file').addEventListener('change', e => { const f = e.target.files[0]; e.
 
 setInterval(() => {
   if (!$('#modal').classList.contains('hidden') || ED.mode) return;
-  if (curTab === 'schedule' && document.activeElement?.id !== 'sim') renderSchedule();
+  if (curTab === 'schedule') renderSchedule();
 }, 30000);
 setInterval(checkAlerts, 15000);
 document.addEventListener('visibilitychange', () => {
