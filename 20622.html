@@ -330,6 +330,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/full.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.99.3/dist/umd/supabase.js"></script>
 <script>
 /* ================= 장소 좌표 ================= */
 const PLACES = {
@@ -460,7 +461,104 @@ function loadState() {
   } catch (e) {}
   return clone(DEFAULT_STATE);
 }
-function saveState() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+/* ================= 공유 서버 (Supabase) =================
+   · 일정·집합 공지·사진을 서버에 저장해서 친구들 화면에 똑같이 보여요.
+   · 아래 키는 브라우저에 넣어도 되는 공개용 Publishable key예요. (Secret 키는 절대 넣지 않기!)
+   · 알림 설정과 스티커는 각자 기기에만 저장돼요. */
+const SB_URL = 'https://tmhsxgsviyzmqeoapdub.supabase.co';
+const SB_KEY = 'sb_publishable_kGFxBfUpmtwgXcLjD801UQ_vcze1B3Y';
+const sb = (() => { try { return window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null; } catch (e) { return null; } })();
+let stateStamp = '', pendingState = null, pushT = null;
+
+function saveState() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  if (!sb) return;
+  clearTimeout(pushT);
+  pushT = setTimeout(async () => {
+    const ts = new Date().toISOString(); stateStamp = ts;
+    const { error } = await sb.from('trip_state').upsert({ id: 'main', data: state, updated_at: ts });
+    if (error) { console.warn(error); toast('⚠️ 서버에 저장하지 못했어요. 인터넷 연결을 확인하고 다시 저장해 주세요'); }
+  }, 250);
+}
+const busy = () => !$('#modal').classList.contains('hidden') || ED.mode;
+function onRemoteState(data, ts) {
+  if (!data || !data.days || (ts && ts === stateStamp)) return;   // 내가 방금 보낸 건 무시
+  if (busy()) { pendingState = { data, ts }; return; }               // 수정 창이 열려 있으면 닫은 뒤 반영
+  stateStamp = ts || '';
+  state = data; pendingState = null;
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  meetRoute = ''; nowRoute = null;
+  if (curTab === 'schedule') renderSchedule(); else if (curTab === 'map') renderMap(); else renderAlbum();
+}
+async function pullState() {
+  const { data, error } = await sb.from('trip_state').select('data,updated_at').eq('id', 'main').maybeSingle();
+  if (error) throw error;
+  if (data) onRemoteState(data.data, data.updated_at);
+  else saveState();   // 서버가 비어 있으면 이 기기의 일정으로 처음 채움
+}
+
+const pubUrl = path => sb.storage.from('photos').getPublicUrl(path).data.publicUrl;
+const rowToPhoto = r => ({ id: r.id, time: r.taken_at, src: r.time_src, place: r.place || '', caption: r.caption || '',
+  name: r.name || '', decorated: !!r.decorated, from: r.from_id, fullPath: r.full_path, thumbPath: r.thumb_path,
+  full: pubUrl(r.full_path), thumb: pubUrl(r.thumb_path), remote: true });
+async function pullPhotos() {
+  const { data, error } = await sb.from('photos').select('*').order('taken_at');
+  if (error) throw error;
+  photos = data.map(rowToPhoto);
+}
+async function upFile(path, blob) {
+  const { error } = await sb.storage.from('photos').upload(path, blob, { contentType: blob.type || 'image/jpeg', cacheControl: '31536000' });
+  if (error && !/exist|duplicate/i.test(error.message || '')) throw error;   // 이미 올라간 파일이면 통과
+}
+/* 사진 저장: 서버가 있으면 서버에, 없으면 이 기기에 */
+async function savePhoto(p) {
+  if (!sb) { await PDB.put(p); return p; }
+  const fp = `${p.id}.jpg`, tp = `${p.id}_t.jpg`;
+  await upFile(fp, p.full); await upFile(tp, p.thumb);
+  const row = { id: p.id, full_path: fp, thumb_path: tp, taken_at: p.time, time_src: p.src, place: p.place || '',
+    caption: p.caption || '', name: p.name || '', decorated: !!p.decorated, from_id: p.from || null };
+  const { error } = await sb.from('photos').insert(row);
+  if (error && error.code !== '23505') throw error;   // 23505 = 이미 있음
+  return rowToPhoto(row);
+}
+async function updatePhoto(p) {
+  if (!p.remote) return PDB.put(p);
+  const { error } = await sb.from('photos').update({ place: p.place, caption: p.caption, taken_at: p.time, time_src: p.src }).eq('id', p.id);
+  if (error) throw error;
+}
+async function deletePhoto(p) {
+  if (!p.remote) return PDB.del(p.id);
+  const { error } = await sb.from('photos').delete().eq('id', p.id);
+  if (error) throw error;
+  await sb.storage.from('photos').remove([p.fullPath, p.thumbPath]);
+}
+function upsertLocal(p) { const i = photos.findIndex(x => x.id === p.id); if (i >= 0) photos[i] = p; else photos.push(p); }
+function onRemotePhoto(pl) {
+  if (pl.eventType === 'DELETE') { if (pl.old && pl.old.id) photos = photos.filter(x => x.id !== pl.old.id); }
+  else if (pl.new && pl.new.id) upsertLocal(rowToPhoto(pl.new));
+  if (curTab === 'album' && !busy()) renderAlbum();
+}
+let liveCh = null;
+function goLive() {
+  if (liveCh) return;
+  liveCh = sb.channel('busan-trip-live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_state' }, pl => { if (pl.new && pl.new.id === 'main') onRemoteState(pl.new.data, pl.new.updated_at); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'photos' }, onRemotePhoto)
+    .subscribe();
+}
+/* 예전에 이 기기에만 저장했던 사진 → 공유 사진첩으로 옮기기 */
+let localOnly = [];
+async function moveLocalPhotos() {
+  const list = localOnly.slice(); let ok = 0;
+  toast(`올리는 중… 0/${list.length}`, true);
+  for (const p of list) {
+    try { upsertLocal(await savePhoto(p)); await PDB.del(p.id); localOnly = localOnly.filter(x => x.id !== p.id); ok++; }
+    catch (e) { console.warn(e); }
+    toast(`올리는 중… ${ok}/${list.length}`, true);
+  }
+  renderAlbum();
+  toast(ok === list.length ? `${ok}장을 공유 사진첩에 올렸어요` : `${ok}장 올림 · ${list.length - ok}장은 실패했어요. 다시 눌러 주세요`);
+}
 
 let state = loadState();
 let sim = null;
@@ -664,6 +762,7 @@ function closeModal() {
   if (pickMap) { pickMap.remove(); pickMap = null; }
   modalLock = false;
   $('#modal').classList.add('hidden'); $('#sheet').innerHTML = ''; document.body.style.overflow = '';
+  if (pendingState) setTimeout(() => { const p = pendingState; if (p && !busy()) { pendingState = null; onRemoteState(p.data, p.ts); } }, 0);
 }
 $('#modal').addEventListener('click', e => {
   if (e.target.id === 'modal' && modalLock) return;   // 올리기 중에는 바깥을 눌러도 닫히지 않음
@@ -1310,6 +1409,7 @@ let photos = [], stickers = [];
 let albumFilter = 'all';
 const urls = new Map();
 function urlOf(p, k) {
+  if (typeof p[k] === 'string') return p[k];
   const key = p.id + k;
   if (!urls.has(key)) urls.set(key, URL.createObjectURL(p[k]));
   return urls.get(key);
@@ -1444,13 +1544,13 @@ function uploadForm() {
     for (const it of b.items) {
       const p = it.p;
       p.caption = (it.cap || '').trim() || all;
-      try { await PDB.put(p); photos.push(p); ok++; if (p.src !== 'exif') noExif++; }
+      try { upsertLocal(await savePhoto(p)); ok++; if (p.src !== 'exif') noExif++; }
       catch (e) { console.warn(e); }
       okBtn.textContent = `올리는 중… ${ok}/${b.items.length}`;
     }
     const failed = b.items.length - ok;
     endBatch(); closeModal(); renderAlbum();
-    toast(`${ok}장 올렸어요${failed ? ` (${failed}장은 저장 공간이 부족해 못 올렸어요)` : ''}${noExif ? ` · ${noExif}장은 파일 시간 기준` : ''}`);
+    toast(`${ok}장 올렸어요${failed ? ` (${failed}장은 못 올렸어요. 인터넷 연결을 확인해 주세요)` : ''}${noExif ? ` · ${noExif}장은 파일 시간 기준` : ''}`);
   });
 }
 
@@ -1476,12 +1576,16 @@ function renderAlbum() {
   }
 
   let html = `<section class="card">
-    <p class="hint" style="margin:0">사진 ${photos.length}장 · 찍힌 시간을 읽어서 그때 일정 장소로 위치를 자동 입력해요</p>
+    <p class="hint" style="margin:0">사진 ${photos.length}장 · ${sb ? '친구들과 같이 보는 사진첩이에요. ' : ''}찍힌 시간을 읽어서 그때 일정 장소로 위치를 자동 입력해요</p>
     <div class="album-actions">
       <button class="btn primary sm" data-act="upload">📁 앨범에서 여러 장 올리기</button>
       <button class="btn ghost sm" data-act="camera">📷 바로 찍기</button>
       <button class="btn ghost sm" data-act="sticker-new">✨ 스티커 추가하기</button>
     </div></section>`;
+  if (localOnly.length) {
+    html += `<section class="card"><p class="hint" style="margin:0 0 8px">📤 이 기기에만 저장된 사진이 ${localOnly.length}장 있어요. 친구들도 볼 수 있게 공유 사진첩으로 옮길까요?</p>
+      <button class="btn primary sm" data-act="move-local">공유 사진첩에 올리기</button></section>`;
+  }
   if (stickers.length) {
     html += `<section class="card"><h2>🏷️ 내 스티커 ${stickers.length}</h2>
       <div class="stk-strip">${stickers.map(s => `<button class="stk" data-act="sticker-view" data-id="${s.id}"><img src="${urlOf(s, 'blob')}" alt=""></button>`).join('')}</div>
@@ -1538,7 +1642,7 @@ function viewPhoto(id) {
       <datalist id="places">${places.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <div class="actions">
         <button type="button" class="btn danger" id="pdel">삭제</button>
-        <a class="btn ghost" href="${urlOf(p, 'full')}" download="busan-${localInput(d).replace(/[:T-]/g, '')}.jpg">다운로드</a>
+        <a class="btn ghost" href="${p.remote ? p.full + '?download=' + encodeURIComponent('busan-' + localInput(d).replace(/[:T-]/g, '') + '.jpg') : urlOf(p, 'full')}" download="busan-${localInput(d).replace(/[:T-]/g, '')}.jpg">다운로드</a>
         <span class="sp"></span>
         <button type="button" class="btn primary" data-save>저장</button>
       </div>
@@ -1546,15 +1650,17 @@ function viewPhoto(id) {
   bindSave($('#pf'), async e => {
     e.preventDefault();
     const v = Object.fromEntries(new FormData(e.target));
-    if (v.time) { const nd = new Date(v.time); if (!isNaN(nd)) { if (nd.getTime() !== d.getTime()) p.src = 'manual'; p.time = nd.toISOString(); } }
+    if (v.time && v.time !== localInput(d)) { const nd = new Date(v.time); if (!isNaN(nd)) { p.src = 'manual'; p.time = nd.toISOString(); } }
     p.place = v.place.trim();
     p.caption = (v.caption || '').trim();
-    await PDB.put(p); closeModal(); renderAlbum(); toast('사진 정보를 저장했어요');
+    try { await updatePhoto(p); } catch (er) { console.warn(er); return toast('⚠️ 저장하지 못했어요. 인터넷 연결을 확인해 주세요'); }
+    closeModal(); renderAlbum(); toast('사진 정보를 저장했어요');
   });
   $('#pdeco').addEventListener('click', () => { closeModal(); openDecorate(p); });
   $('#pdel').addEventListener('click', async () => {
     if (!(await askConfirm('이 사진을 삭제할까요?', '삭제', true))) return;
-    await PDB.del(p.id); photos = photos.filter(x => x.id !== p.id); dropUrls(p.id);
+    try { await deletePhoto(p); } catch (er) { console.warn(er); return toast('⚠️ 삭제하지 못했어요. 인터넷 연결을 확인해 주세요'); }
+    photos = photos.filter(x => x.id !== p.id); dropUrls(p.id);
     closeModal(); renderAlbum(); toast('삭제했어요');
   });
 }
@@ -1580,6 +1686,7 @@ function openEditor(title, saveLabel) {
 function closeEditor() {
   $('#editor').classList.add('hidden'); document.body.style.overflow = '';
   ED.mode = null; ED.ptrs.clear(); $('#ed-panel').innerHTML = '';
+  if (pendingState) setTimeout(() => { const p = pendingState; if (p && !busy()) { pendingState = null; onRemoteState(p.data, p.ts); } }, 0);
 }
 function fitCanvas() {
   const st = $('#ed-stage'), c = ED.c;
@@ -1986,8 +2093,7 @@ async function dcSave() {
   const thumb = await resize(full, 480, 0.75);
   const src = DC.photo;
   const p = { id: uid(), time: src.time, src: src.src, full, thumb, place: src.place || '', caption: src.caption || '', name: 'deco-' + (src.name || ''), decorated: true, from: src.id, addedAt: Date.now() };
-  try { await PDB.put(p); } catch (e) { return toast('저장 공간이 부족해서 저장하지 못했어요'); }
-  photos.push(p);
+  try { upsertLocal(await savePhoto(p)); } catch (e) { console.warn(e); return toast('⚠️ 저장하지 못했어요. 인터넷 연결을 확인해 주세요'); }
   closeEditor(); renderAlbum(); toast('꾸민 사진을 저장했어요 (원본도 그대로 있어요)');
 }
 
@@ -2036,6 +2142,7 @@ document.addEventListener('click', e => {
   else if (a === 'filter') { albumFilter = b.dataset.f; renderAlbum(); }
   else if (a === 'view') viewPhoto(b.dataset.id);
   else if (a === 'upload') $('#file').click();
+  else if (a === 'move-local') moveLocalPhotos();
 });
 $('#fab').addEventListener('click', () => $('#file').click());
 $('#file').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
@@ -2050,12 +2157,18 @@ setInterval(checkAlerts, 15000);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   checkAlerts();
+  if (sb) Promise.all([pullState(), pullPhotos()]).then(() => { if (curTab === 'album' && !busy()) renderAlbum(); }).catch(e => console.warn(e));
 });
 
 (async function init() {
   await PDB.open();
-  photos = await PDB.all();
   stickers = await PDB.all('stickers');
+  if (sb) {
+    localOnly = await PDB.all();
+    try { await Promise.all([pullState(), pullPhotos()]); }
+    catch (e) { console.warn(e); setTimeout(() => toast('⚠️ 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요'), 800); }
+    goLive();
+  } else photos = await PDB.all();
   setTimeout(checkAlerts, 1500);
   const h = location.hash.slice(1);
   setTab(['map', 'album'].includes(h) ? h : 'schedule');
