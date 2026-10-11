@@ -9,11 +9,10 @@ self.addEventListener('push', e => {
   e.waitUntil(self.registration.showNotification(d.title || '🚩 집합 알림', {
     body: d.body || '',
     tag: d.tag || 'meet',
-    renotify: true,
-    requireInteraction: true,
+    requireInteraction: true,   // 확인 누를 때까지 알림이 화면에 남아 있게 (안드로이드·PC)
+    silent: true,               // 소리 없이
     icon: 'icon-192.png',
     badge: 'icon-192.png',
-    vibrate: [400, 200, 400, 200, 600],
     data: { url: d.url || './' }
   }));
 });

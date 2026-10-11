@@ -1118,7 +1118,7 @@ async function setAlert(on, lead) {
   if (on) {
     const n = now();
     for (const ev of meetEvents()) if (ev.when - lead * 60000 <= n) fired[firedKey(ev, lead)] = Date.now();
-    if (!was) { unlockAudio(); try { if ('Notification' in window && Notification.permission === 'default') perm = Notification.requestPermission(); } catch (e) {} }   // 권한 창을 기다리지 않고 바로 저장
+    if (!was) { try { if ('Notification' in window && Notification.permission === 'default') perm = Notification.requestPermission(); } catch (e) {} }   // 권한 창을 기다리지 않고 바로 저장
   }
   saveAlert();
   // 페이지가 닫혀 있어도 오는 푸시 알림 등록/해제 (기다리지 않고 뒤에서 처리)
@@ -1201,24 +1201,6 @@ function checkAlerts() {
   }
 }
 
-/* 소리 */
-let actx = null, beepTimer = null;
-function unlockAudio() {
-  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
-}
-function beep() {
-  if (!actx) return;
-  try {
-    const t0 = actx.currentTime;
-    for (let i = 0; i < 3; i++) {
-      const o = actx.createOscillator(), g = actx.createGain(), s = t0 + i * 0.4;
-      o.type = 'sine'; o.frequency.value = i === 2 ? 1175 : 880;
-      g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.35, s + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.3);
-      o.connect(g); g.connect(actx.destination); o.start(s); o.stop(s + 0.32);
-    }
-  } catch (e) {}
-}
-
 /* 알림 화면 */
 function showAlarm(ev, lead, isTest) {
   const head = isTest ? '🔔 알림 테스트' : (lead ? `${lead}분 후 집합!` : '지금 집합 시간!');
@@ -1231,19 +1213,16 @@ function showAlarm(ev, lead, isTest) {
       <button class="btn" data-act="alarm-ok">확인했어요</button>
     </div>`;
   $('#alarm').classList.remove('hidden');
-  beep(); clearInterval(beepTimer);
-  let n = 0; beepTimer = setInterval(() => { if (++n > 4) clearInterval(beepTimer); else beep(); }, 8000);
   try { navigator.vibrate && navigator.vibrate([400, 200, 400, 200, 600]); } catch (e) {}
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('🚩 ' + head.replace('🔔 ', ''), { body: `${ev.place} · ${hm(ev.when)}`, tag: 'meet-' + ev.id, requireInteraction: true });
+      new Notification('🚩 ' + head.replace('🔔 ', ''), { body: `${ev.place} · ${hm(ev.when)}`, tag: 'meet-' + ev.id, requireInteraction: true, silent: true });
     }
   } catch (e) {}   // 안드로이드 크롬 등 페이지 알림을 지원하지 않는 브라우저는 무시
 }
-function closeAlarm() { $('#alarm').classList.add('hidden'); clearInterval(beepTimer); try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} }
+function closeAlarm() { $('#alarm').classList.add('hidden'); try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} }
 
 async function toggleAlert() {
-  unlockAudio();
   await setAlert(!alertCfg.on, alertCfg.leads[0]);
   toast(alertCfg.on ? '집합 알림을 켰어요' : '집합 알림을 껐어요');
   renderSchedule();
@@ -2165,7 +2144,6 @@ function setTab(t) {
 }
 
 document.addEventListener('click', e => {
-  if (alertCfg.on) unlockAudio();   // 소리 알림은 화면을 한 번 눌러야 재생 허용됨
   const tab = e.target.closest('.tab'); if (tab) return setTab(tab.dataset.tab);
   const dt = e.target.closest('[data-dtab]');
   if (dt) { schedDay = +dt.dataset.dtab; renderSchedule(); document.getElementById('daytabs')?.scrollIntoView({ block: 'start' }); return; }
