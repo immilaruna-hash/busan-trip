@@ -979,8 +979,9 @@ function renderSchedule() {
       <input type="datetime-local" id="sim" value="${sim ? localInput(now()) : ''}"></label>
     <div class="actions" style="margin-top:10px">
       <button class="btn ghost" data-act="sim-clear">실제 시각 사용</button>
+      <button class="btn primary" data-act="push-test">📲 10초 뒤 푸시 알림 테스트</button>
     </div>
-    <p class="hint">${sim ? `⏱️ 테스트 시각이 흘러가는 중이에요: <b>${mdw(now())} ${hm(now())}</b><br>` : ''}이 기기 화면에만 적용돼요. 서버 푸시 알림은 실제 시각 기준이에요.</p>
+    <p class="hint">${sim ? `⏱️ 테스트 시각이 흘러가는 중이에요: <b>${mdw(now())} ${hm(now())}</b><br>` : ''}테스트 시각은 이 기기 화면에만 적용돼요. 서버 푸시 알림은 실제 시각 기준이라, 푸시는 위 테스트 버튼으로 확인해 주세요.</p>
   </section>`;
 
   const root = $('#view-schedule');
@@ -1153,12 +1154,22 @@ async function syncPush(perm, welcome) {
     return 'on';
   } catch (e) { console.warn('push', e); return 'error'; }
 }
-function pushTip(r) {
+/* [임시] 푸시 테스트: 10초 뒤 서버가 이 기기로 테스트 알림을 보냄 */
+async function pushTest() {
+  if (!alertCfg.on) return toast('먼저 집합 공지 → 수정에서 알림을 켜 주세요');
+  const r = await syncPush(Notification.permission === 'default' ? Notification.requestPermission() : null, false);
+  if (r !== 'on') return pushTip(r, true);
+  const sub = await swReg.pushManager.getSubscription();
+  toast('10초 뒤에 알림이 와요. 지금 홈 화면이나 다른 앱으로 나가 보세요!');
+  const { data, error } = await sb.functions.invoke('send-meet-alerts', { body: { test: sub.endpoint, delay: 10 } });
+  if (error || !data || !data.ok) toast('⚠️ 서버가 알림을 보내지 못했어요 (' + ((data && data.result) || (error && error.message) || '오류') + ')');
+}
+function pushTip(r, now) {
   if (!alertCfg.on) return;
   const msg = r === 'unsupported' ? (IS_IOS && !IS_APP ? '📱 아이폰은 사이트를 홈 화면에 추가하고 그 아이콘으로 열어야, 페이지를 닫아도 알림이 와요' : '이 브라우저는 페이지를 닫으면 알림을 받을 수 없어요. 페이지를 열어 두면 울려요')
     : r === 'denied' ? '🔕 알림이 차단돼 있어요. 브라우저 설정에서 이 사이트 알림을 허용해 주세요'
     : r === 'error' ? '⚠️ 푸시 알림 등록에 실패했어요. 인터넷 연결을 확인하고 알림을 다시 켜 주세요' : '';
-  if (msg) setTimeout(() => toast(msg), 2600);
+  if (msg) setTimeout(() => toast(msg), now ? 0 : 2600);
 }
 
 /* 알림 대상: 집합 공지 + 일정별 집합 시간 */
@@ -2174,6 +2185,7 @@ document.addEventListener('click', e => {
   else if (a === 'sticker-new') stickerSourcePicker();
   else if (a === 'sticker-view') viewSticker(b.dataset.id);
   else if (a === 'locate') locateMe();
+  else if (a === 'push-test') pushTest();
   else if (a === 'sim-clear') { setSim(null); renderSchedule(); toast('실제 시각으로 돌아왔어요'); }
   else if (a === 'reset') { askConfirm('수정한 일정과 집합 공지를 모두 처음 상태로 되돌릴까요? (사진은 그대로예요)', '되돌리기', true).then(ok => { if (ok) { state = clone(DEFAULT_STATE); saveState(); meetRoute = ''; nowRoute = null; renderSchedule(); toast('처음 일정으로 되돌렸어요'); } }); }
   else if (a === 'filter') { albumFilter = b.dataset.f; renderAlbum(); }
