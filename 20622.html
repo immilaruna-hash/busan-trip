@@ -565,9 +565,14 @@ async function moveLocalPhotos() {
 }
 
 let state = loadState();
-let sim = null;
-try { sim = localStorage.getItem(SIM_KEY) || null; } catch (e) {}   // [임시] 테스트용 시각 — 확인 끝나면 시간 확인 칸과 함께 지우기
-const now = () => sim ? new Date(sim) : new Date();
+/* [임시] 테스트용 시각 — 정한 시각부터 실제 시간처럼 흘러가요. 확인 끝나면 시간 확인 칸과 함께 지우기 */
+let sim = null, simAt = 0;   // sim: 정한 시각, simAt: 정한 순간의 실제 시각(ms)
+try { const v = JSON.parse(localStorage.getItem(SIM_KEY) || 'null'); if (v && v.t) { sim = v.t; simAt = v.at; } } catch (e) {}
+const now = () => sim ? new Date(new Date(sim).getTime() + (Date.now() - simAt)) : new Date();
+function setSim(v) {
+  sim = v || null; simAt = Date.now();
+  try { sim ? localStorage.setItem(SIM_KEY, JSON.stringify({ t: sim, at: simAt })) : localStorage.removeItem(SIM_KEY); } catch (e) {}
+}
 
 function flat() {
   return state.days.flatMap((d, di) => d.items.map(it => ({
@@ -971,19 +976,18 @@ function renderSchedule() {
   html += `<section class="card settings" style="margin-top:24px">
     <h2>⚙️ 시간 확인 <small style="font-weight:600;color:var(--muted)">(임시)</small></h2>
     <label>테스트용 현재 시각 (여행 전에 화면 미리보기용)
-      <input type="datetime-local" id="sim" value="${sim ? esc(sim) : ''}"></label>
+      <input type="datetime-local" id="sim" value="${sim ? localInput(now()) : ''}"></label>
     <div class="actions" style="margin-top:10px">
       <button class="btn ghost" data-act="sim-clear">실제 시각 사용</button>
     </div>
-    <p class="hint">${sim ? '⚠️ 지금은 테스트 시각으로 보고 있어요.<br>' : ''}이 기기 화면에만 적용돼요. 서버 푸시 알림은 실제 시각 기준이에요.</p>
+    <p class="hint">${sim ? `⏱️ 테스트 시각이 흘러가는 중이에요: <b>${mdw(now())} ${hm(now())}</b><br>` : ''}이 기기 화면에만 적용돼요. 서버 푸시 알림은 실제 시각 기준이에요.</p>
   </section>`;
 
   const root = $('#view-schedule');
   root.innerHTML = html;
   fillLegs(root);
   $('#sim').addEventListener('change', e => {
-    sim = e.target.value || null;
-    try { sim ? localStorage.setItem(SIM_KEY, sim) : localStorage.removeItem(SIM_KEY); } catch (er) {}
+    setSim(e.target.value);
     renderSchedule();
   });
 
@@ -2170,7 +2174,7 @@ document.addEventListener('click', e => {
   else if (a === 'sticker-new') stickerSourcePicker();
   else if (a === 'sticker-view') viewSticker(b.dataset.id);
   else if (a === 'locate') locateMe();
-  else if (a === 'sim-clear') { sim = null; try { localStorage.removeItem(SIM_KEY); } catch (er) {} renderSchedule(); toast('실제 시각으로 돌아왔어요'); }
+  else if (a === 'sim-clear') { setSim(null); renderSchedule(); toast('실제 시각으로 돌아왔어요'); }
   else if (a === 'reset') { askConfirm('수정한 일정과 집합 공지를 모두 처음 상태로 되돌릴까요? (사진은 그대로예요)', '되돌리기', true).then(ok => { if (ok) { state = clone(DEFAULT_STATE); saveState(); meetRoute = ''; nowRoute = null; renderSchedule(); toast('처음 일정으로 되돌렸어요'); } }); }
   else if (a === 'filter') { albumFilter = b.dataset.f; renderAlbum(); }
   else if (a === 'view') viewPhoto(b.dataset.id);
@@ -2184,7 +2188,7 @@ $('#stk-file').addEventListener('change', e => { const f = e.target.files[0]; e.
 
 setInterval(() => {
   if (!$('#modal').classList.contains('hidden') || ED.mode) return;
-  if (curTab === 'schedule') renderSchedule();
+  if (curTab === 'schedule' && document.activeElement?.id !== 'sim') renderSchedule();
 }, 30000);
 setInterval(checkAlerts, 15000);
 document.addEventListener('visibilitychange', () => {
