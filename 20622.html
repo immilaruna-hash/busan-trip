@@ -1877,12 +1877,19 @@ function viewPhoto(id) {
 const ED = { mode: null, c: null, ctx: null, ptrs: new Map() };
 ED.c = $('#ed-canvas'); ED.ctx = ED.c.getContext('2d', { willReadFrequently: true });
 
-function loadImg(src) {
+/* 서버 사진(다른 주소)을 캔버스에 그린 뒤 저장하려면 'CORS 허용' 모드로 불러와야 해요.
+   이렇게 안 하면 캔버스가 잠겨서(tainted) 꾸민 사진을 내보낼 수 없어요. */
+function loadImg(src, noCross) {
   return new Promise((res, rej) => {
-    const url = src instanceof Blob ? URL.createObjectURL(src) : src;
+    const isBlob = src instanceof Blob;
+    const url = isBlob ? URL.createObjectURL(src) : src;
     const img = new Image();
+    if (!isBlob && !noCross && /^https?:/i.test(url)) img.crossOrigin = 'anonymous';
     img.onload = () => res(img);
-    img.onerror = () => rej(new Error('이미지를 열 수 없어요'));
+    img.onerror = () => {
+      if (!isBlob && !noCross) return loadImg(src, true).then(res, rej);   // 안 되면 보기 전용으로라도
+      rej(new Error('이미지를 열 수 없어요'));
+    };
     img.src = url;
   });
 }
@@ -1939,7 +1946,8 @@ async function startSticker(blob) {
   ED.c.width = w; ED.c.height = h;
   ED.ctx.clearRect(0, 0, w, h); ED.ctx.drawImage(img, 0, 0, w, h);
   SM.w = w; SM.h = h;
-  SM.orig = ED.ctx.getImageData(0, 0, w, h);
+  try { SM.orig = ED.ctx.getImageData(0, 0, w, h); }
+  catch (e) { console.warn(e); return toast('⚠️ 이 사진으로는 스티커를 만들 수 없어요. 새로고침 후 다시 해 주세요'); }
   SM.view = new ImageData(new Uint8ClampedArray(SM.orig.data), w, h);
   SM.mask = new Uint8Array(w * h).fill(255);
   SM.undo = []; SM.tool = 'wand'; SM.tol = 40; SM.brush = 24; SM.outline = true; SM.busy = false;
@@ -2296,12 +2304,14 @@ function dcPanelInput(e) {
 async function dcSave() {
   if (!DC.layers.length) return toast('아직 꾸민 게 없어요');
   dcRender(true);
-  const full = await new Promise(r => ED.c.toBlob(r, 'image/jpeg', 0.9));
+  let full = null;
+  try { full = await new Promise((r, j) => { try { ED.c.toBlob(r, 'image/jpeg', 0.9); } catch (e) { j(e); } }); }
+  catch (e) { console.warn(e); return toast('⚠️ 이 사진은 꾸민 결과를 저장할 수 없어요. 새로고침 후 다시 해 주세요'); }
   if (!full) return toast('저장하지 못했어요');
   const thumb = await resize(full, 480, 0.75);
   const src = DC.photo;
   const p = { id: uid(), time: src.time, src: src.src, full, thumb, place: src.place || '', caption: src.caption || '', name: 'deco-' + (src.name || ''), decorated: true, from: src.id, addedAt: Date.now() };
-  try { upsertLocal(await savePhoto(p)); } catch (e) { console.warn(e); return toast('⚠️ 저장하지 못했어요. 인터넷 연결을 확인해 주세요'); }
+  try { upsertLocal(await savePhoto(p)); } catch (e) { console.warn(e); return toast('⚠️ 저장하지 못했어요: ' + ((e && e.message) || '인터넷 연결을 확인해 주세요')); }
   closeEditor(); renderAlbum(); toast('꾸민 사진을 저장했어요 (원본도 그대로 있어요)');
 }
 
