@@ -31,6 +31,7 @@ try{document.querySelector('meta[name=theme-color]').content=t==='dark'?'#0b1220
     --bg:#0b1220; --bgA:rgba(11,18,32,.96); --tint:#111b2dd9; --danger-bg:#3b1620;
     color-scheme:dark;
   }
+  .sim-badge{display:inline-block;margin:2px 0 0;background:var(--warn);color:#fff;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800}
   .theme-btn{position:absolute;right:0;top:0;border:1px solid var(--line);background:var(--bg);color:var(--ink);
     border-radius:999px;width:36px;height:36px;font-size:17px;padding:0;line-height:1}
   *{box-sizing:border-box}
@@ -313,6 +314,7 @@ try{document.querySelector('meta[name=theme-color]').content=t==='dark'?'#0b1220
   <div class="head-in">
     <button class="theme-btn" id="theme-btn" type="button" aria-label="다크 모드 전환"></button>
     <div class="brand">둔촌고등학교 <b>B팀</b> · 10.12(월) – 10.14(수)</div>
+    <div class="sim-badge hidden" id="sim-badge"></div>
     <h1>부산 수학여행 🌊</h1>
     <nav class="tabs">
       <button class="tab on" data-tab="schedule">🗓️ 일정표</button>
@@ -609,9 +611,10 @@ async function moveLocalPhotos() {
 }
 
 let state = loadState();
-let sim = null;
-try { localStorage.removeItem(SIM_KEY); } catch (e) {}
-const now = () => new Date();
+/* 시간 테스터 — 정한 시각부터 실제 시간처럼 흘러가요. 이 화면(탭)에서만 적용되고, 탭을 닫으면 실제 시각으로 돌아와요. */
+let sim = null, simAt = 0, firedBackup = null;   // sim: 정한 시각, simAt: 정한 순간의 실제 시각(ms)
+try { localStorage.removeItem(SIM_KEY); const v = JSON.parse(sessionStorage.getItem(SIM_KEY) || 'null'); if (v && v.t) { sim = v.t; simAt = v.at; } } catch (e) {}
+const now = () => sim ? new Date(new Date(sim).getTime() + (Date.now() - simAt)) : new Date();
 
 function flat() {
   return state.days.flatMap((d, di) => d.items.map(it => ({
@@ -1044,15 +1047,31 @@ function renderSchedule() {
     html += `</section>`;
   });
 
+  html += `<section class="card settings" style="margin-top:24px">
+    <h2>⏱ 시간 테스터</h2>
+    <label>테스트용 현재 시각 (이 시각부터 실제 시간처럼 흘러가요)
+      <input type="datetime-local" id="sim" value="${sim ? localInput(now()) : ''}"></label>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn ghost" data-act="sim-clear">실제 시각 사용</button>
+    </div>
+    <p class="hint">${sim ? `⏱ 테스트 시각이 흘러가는 중이에요: <b>${mdw(now())} ${hm(now())}</b><br>` : ''}이 화면에서만 적용돼요. 서버 푸시 알림은 실제 시각 기준이고, 테스트 중 울린 알림 기록은 저장하지 않아요.</p>
+  </section>`;
+
   const root = $('#view-schedule');
   root.innerHTML = html;
   fillLegs(root);
+  simBadge();
+  $('#sim').addEventListener('change', e => { setSim(e.target.value); refreshAll(); });
 
   if (!scrolledOnce) {
     scrolledOnce = true;
     const el = document.querySelector('.item.now');
     if (el) setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
   }
+}
+
+function refreshAll() {
+  if (curTab === 'schedule') renderSchedule(); else if (curTab === 'map') renderMap(); else renderAlbum();
 }
 
 function itemForm(di, id) {
@@ -1189,7 +1208,19 @@ let alertCfg = { on: false, leads: [10] };
 try { alertCfg = { ...alertCfg, ...JSON.parse(localStorage.getItem(ALERT_KEY) || '{}') }; } catch (e) {}
 let fired = {};
 try { fired = JSON.parse(localStorage.getItem(FIRED_KEY) || '{}'); } catch (e) {}
-const saveAlert = () => { try { localStorage.setItem(ALERT_KEY, JSON.stringify(alertCfg)); localStorage.setItem(FIRED_KEY, JSON.stringify(fired)); } catch (e) {} };
+const saveAlert = () => { try { localStorage.setItem(ALERT_KEY, JSON.stringify(alertCfg)); if (!sim) localStorage.setItem(FIRED_KEY, JSON.stringify(fired)); } catch (e) {} };   // 시간 테스트 중에는 '울림 기록'을 저장하지 않아요
+function setSim(v) {
+  if (v && !sim) firedBackup = JSON.stringify(fired);                       // 테스트 시작 전 울림 기록을 보관
+  if (!v && firedBackup !== null) { try { fired = JSON.parse(firedBackup); } catch (e) {} firedBackup = null; }   // 끝나면 원래대로
+  sim = v || null; simAt = Date.now();
+  try { sim ? sessionStorage.setItem(SIM_KEY, JSON.stringify({ t: sim, at: simAt })) : sessionStorage.removeItem(SIM_KEY); } catch (e) {}
+  simBadge();
+}
+function simBadge() {
+  const b = $('#sim-badge'); if (!b) return;
+  b.classList.toggle('hidden', !sim);
+  if (sim) b.textContent = '⏱ 테스트 시각 ' + mdw(now()) + ' ' + hm(now());
+}
 /* 알림은 하나만: 집합 몇 분 전 (집합 공지 수정 화면에서 정함) */
 const cleanLead = v => { v = Math.round(+v); return v >= 1 && v <= 180 ? v : null; };
 alertCfg.leads = [cleanLead(Array.isArray(alertCfg.leads) ? alertCfg.leads[0] : null) || 10];
@@ -2241,6 +2272,7 @@ document.addEventListener('click', e => {
   const a = b.dataset.act;
   if (a === 'edit') itemForm(+b.dataset.day, b.dataset.id);
   else if (a === 'add') itemForm(+b.dataset.day, null);
+  else if (a === 'sim-clear') { setSim(null); refreshAll(); toast('실제 시각으로 돌아왔어요'); }
   else if (a === 'edit-meet') meetForm();
   else if (a === 'route-me') routeMe(b.dataset.t);
   else if (a === 'map-day') { mapDay = +b.dataset.day; $('#map-me').innerHTML = ''; renderMap(); }
@@ -2268,9 +2300,10 @@ $('#stk-file').addEventListener('change', e => { const f = e.target.files[0]; e.
 
 setInterval(() => {
   if (!$('#modal').classList.contains('hidden') || ED.mode) return;
-  if (curTab === 'schedule') renderSchedule();
+  if (curTab === 'schedule' && document.activeElement?.id !== 'sim') renderSchedule();
 }, 30000);
 setInterval(checkAlerts, 15000);
+setInterval(simBadge, 20000);
 /* 다크 모드 버튼 */
 function applyTheme(t, save) {
   document.documentElement.setAttribute('data-theme', t);
