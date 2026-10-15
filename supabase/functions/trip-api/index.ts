@@ -1,6 +1,6 @@
 // 부산 수학여행 사이트 API
-// · 입장 코드가 맞아야 일정·사진을 보고 쓸 수 있어요. (반 친구 코드 / 관리자 코드)
-// · 일정·집합 공지 수정은 관리자만, 사진 글 수정·삭제는 올린 사람(또는 관리자)만.
+// · 입장 코드 없이 누구나 볼 수 있어요.
+// · 사진 글 수정·삭제는 올린 사람(기기)만 할 수 있어요. 기기마다 비밀 토큰을 만들고, 서버에는 그 해시만 저장해요.
 // · 데이터베이스 표는 브라우저에서 직접 못 건드리고(RLS), 이 함수(서비스 키)를 통해서만 읽고 써요.
 // · 'eta': 그 시간대 교통을 반영한 예상 이동 시간 (카카오모빌리티 미래 운행 정보, 키는 서버 비밀값)
 import { createClient } from "npm:@supabase/supabase-js@2.99.3";
@@ -23,16 +23,6 @@ async function sha(s: string) {
   return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-/* 입장 코드 확인 (10분에 10번 넘게 틀리면 잠시 잠금) */
-async function roleOf(code: string, ip: string, cfg: Record<string, string>) {
-  const since = new Date(Date.now() - 10 * MIN).toISOString();
-  const { count } = await sb.from("auth_fail").select("id", { count: "exact", head: true }).eq("ip", ip).gte("at", since);
-  if ((count ?? 0) >= 10) return "locked";
-  if (code && code === cfg.admin_code) return "admin";
-  if (code && code === cfg.member_code) return "member";
-  await sb.from("auth_fail").insert({ ip });
-  return null;
-}
 
 async function sign(paths: string[]) {
   const map: Record<string, string> = {};
@@ -102,13 +92,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
     const body = await req.json().catch(() => ({}));
-    const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
-    const { data: cfg } = await sb.rpc("get_push_config");
-    if (!cfg) return fail("config");
-    const role = await roleOf(str(body.code, 40), ip, cfg);
-    if (role === "locked") return fail("locked");
-    if (!role) return fail("bad-code");
-    const admin = role === "admin";
+    const role = "member", admin = false;
     const token = str(body.token, 100);
     const me = token.length >= 20 ? await sha(token) : "";
 
@@ -126,7 +110,6 @@ Deno.serve(async (req) => {
       }
 
       case "save_state": {
-        if (!admin) return fail("admin-only");
         const d = body.data;
         if (!d || !Array.isArray(d.days) || JSON.stringify(d).length > 200_000) return fail("bad-data");
         const ts = new Date().toISOString();
@@ -165,7 +148,7 @@ Deno.serve(async (req) => {
         const id = str(body.id, 48);
         const { data: row } = await sb.from("photos").select("*").eq("id", id).maybeSingle();
         if (!row) return fail("not-found");
-        if (!admin && !(me && row.owner_hash === me)) return fail("not-owner");   // 올린 사람 또는 관리자만
+        if (!admin && !(me && row.owner_hash === me)) return fail("not-owner");   // 올린 사람(기기)만
         if (body.action === "delete_photo") {
           await sb.from("photos").delete().eq("id", id);
           await sb.storage.from(BUCKET).remove([row.full_path, row.thumb_path]);
