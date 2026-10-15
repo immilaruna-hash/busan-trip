@@ -35,7 +35,7 @@
   .dtab{flex:1;border:1px solid var(--line);background:#fff;border-radius:12px;padding:5px 4px;
     font-size:15px;font-weight:800;color:var(--muted);line-height:1.25;text-align:center;position:relative}
   .dtab small{display:block;font-size:11px;font-weight:600;opacity:.85}
-  .dtab.on{background:var(--sky-d);border-color:var(--sky-d);color:#fff}
+  .dtab.on{background:var(--sky);border-color:var(--sky);color:#fff}
   .tabs{display:flex}
   .tab{flex:1;border:0;background:none;padding:10px 0 12px;font-size:15px;font-weight:700;
     color:var(--muted);border-bottom:3px solid transparent;transition:.15s}
@@ -54,7 +54,7 @@
     border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700}
 
   /* 현재 일정 카드 */
-  .now-card{background:linear-gradient(135deg,#0369a1,#0284c7);color:#fff;border:0;
+  .now-card{background:linear-gradient(135deg,#0ea5e9,#38bdf8);color:#fff;border:0;
     box-shadow:0 8px 24px rgba(14,165,233,.25)}
   .now-card a{color:#fff;font-weight:700}
   .nc-label{display:inline-block;background:rgba(255,255,255,.22);border-radius:999px;
@@ -93,7 +93,7 @@
   .chips::-webkit-scrollbar{display:none}
   .chip{flex:none;border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;
     font-size:14px;font-weight:700;color:var(--muted)}
-  .chip.on{background:var(--sky-d);border-color:var(--sky-d);color:#fff}
+  .chip.on{background:var(--sky);border-color:var(--sky);color:#fff}
 
   /* 일정 목록 */
   .day{margin:4px 0 6px;scroll-margin-top:130px}
@@ -183,7 +183,7 @@
   .empty b{display:block;font-size:40px;margin-bottom:6px}
 
   .fab{position:fixed;right:max(16px,calc(50% - 304px));bottom:calc(20px + env(safe-area-inset-bottom));z-index:900;
-    background:var(--sky-d);color:#fff;border:0;border-radius:999px;padding:15px 20px;font-size:15px;font-weight:800;
+    background:var(--sky);color:#fff;border:0;border-radius:999px;padding:15px 20px;font-size:15px;font-weight:800;
     box-shadow:0 8px 22px rgba(14,165,233,.4)}
 
   /* 모달 */
@@ -1710,7 +1710,7 @@ function renderAlbum() {
           const d = new Date(p.time);
           const when = `${d.getMonth() + 1}월 ${d.getDate()}일 ${d.getHours()}시 ${pad(d.getMinutes())}분`;
           return `<button class="pcard" data-act="view" data-id="${p.id}">
-            <span class="ph"><img src="${urlOf(p, 'thumb')}" loading="lazy" alt="${esc(p.place || p.caption || '여행 사진')}" onerror="this.style.visibility='hidden'">${p.decorated ? '<i>🎨 꾸밈</i>' : ''}</span>
+            <span class="ph"><img src="${urlOf(p, 'thumb')}" loading="lazy" alt="">${p.decorated ? '<i>🎨 꾸밈</i>' : ''}</span>
             <span class="pdate">${when}</span>
             <span class="ploc">📍 ${esc(p.place || matchPhoto(d).place)}</span>
             ${p.caption ? `<span class="pcap">${esc(p.caption)}</span>` : ''}
@@ -1728,7 +1728,7 @@ function viewPhoto(id) {
   const places = [...new Set(flat().map(i => i.place))];
   const ll = m.item ? startLL(m.item) : null;
   const own = canEditPhoto(p), dis = own ? '' : 'disabled';
-  openModal(`<img class="big" src="${urlOf(p, 'full')}" alt="${esc(p.caption || p.place || '여행 사진')}">
+  openModal(`<img class="big" src="${urlOf(p, 'full')}" alt="">
     ${p.caption ? `<div class="cap">${esc(p.caption)}</div>` : ''}
     <button class="btn primary" id="pdeco" style="width:100%;margin-bottom:12px">🎨 꾸미기 (스티커 · 글자 · 펜)</button>
     <div class="auto">🤖 자동 위치: <b>${esc(m.place)}</b><br><small>${esc(m.how)}</small>
