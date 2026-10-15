@@ -470,7 +470,7 @@ function loadState() {
 }
 /* ================= 공유 서버 (Supabase) =================
    · 모든 읽기·쓰기는 서버 함수(trip-api)를 거쳐요. 데이터베이스 표는 브라우저에서 직접 건드릴 수 없어요(RLS).
-   · 사진 글 수정·삭제는 올린 사람(기기)만 할 수 있어요. 서버가 확인해서, 화면을 우회해도 막혀요.
+   · 사진 글은 누구나 수정·삭제할 수 있어요(일정과 같은 규칙).
    · 아래 키는 브라우저에 넣어도 되는 공개용 Publishable key예요. (Secret 키는 절대 넣지 않기!)
    · 알림 설정과 스티커는 각자 기기에만 저장돼요. */
 const SB_URL = 'https://tmhsxgsviyzmqeoapdub.supabase.co';
@@ -486,9 +486,9 @@ if (devToken.length < 20) {
   try { localStorage.setItem(DEV_KEY, devToken); } catch (e) {}
 }
 const isAdmin = () => true;   // 일정·집합 공지는 누구나 고칠 수 있어요
-const canEditPhoto = p => !p.remote || p.mine;   // 사진은 올린 사람만
+const canEditPhoto = () => true;   // 사진도 누구나 고치거나 지울 수 있어요
 const auth = true;
-const ERR = { 'not-owner': '올린 사람만 고치거나 지울 수 있어요', 'not-found': '이미 지워진 사진이에요' };
+const ERR = { 'not-found': '이미 지워진 사진이에요' };
 async function api(action, extra = {}) {
   let res;
   try { res = await sb.functions.invoke('trip-api', { body: { action, token: devToken, ...extra } }); }
@@ -1730,7 +1730,6 @@ function viewPhoto(id) {
   const own = canEditPhoto(p), dis = own ? '' : 'disabled';
   openModal(`<img class="big" src="${urlOf(p, 'full')}" alt="">
     ${p.caption ? `<div class="cap">${esc(p.caption)}</div>` : ''}
-    ${own ? '' : '<p class="ro-note">✋ 친구가 올린 사진이에요. 글·시간·위치 수정과 삭제는 올린 사람만 할 수 있어요. 꾸미기는 내 사진으로 새로 저장돼요.</p>'}
     <button class="btn primary" id="pdeco" style="width:100%;margin-bottom:12px">🎨 꾸미기 (스티커 · 글자 · 펜)</button>
     <div class="auto">🤖 자동 위치: <b>${esc(m.place)}</b><br><small>${esc(m.how)}</small>
       ${ll && m.item.mode !== 'train' ? `<br><a href="${nMap(m.item.place, ll)}" ${NT}>네이버지도에서 보기 ↗</a>` : ''}</div>

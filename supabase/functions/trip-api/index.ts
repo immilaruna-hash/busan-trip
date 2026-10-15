@@ -1,6 +1,6 @@
 // 부산 수학여행 사이트 API
 // · 입장 코드 없이 누구나 볼 수 있어요.
-// · 사진 글 수정·삭제는 올린 사람(기기)만 할 수 있어요. 기기마다 비밀 토큰을 만들고, 서버에는 그 해시만 저장해요.
+// · 사진 글은 누구나 수정·삭제할 수 있어요. (일정과 같은 규칙)
 // · 데이터베이스 표는 브라우저에서 직접 못 건드리고(RLS), 이 함수(서비스 키)를 통해서만 읽고 써요.
 // · 'eta': 그 시간대 교통을 반영한 예상 이동 시간 (카카오모빌리티 미래 운행 정보, 키는 서버 비밀값)
 import { createClient } from "npm:@supabase/supabase-js@2.99.3";
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
     const body = await req.json().catch(() => ({}));
-    const role = "member", admin = false;
+    const role = "member";
     const token = str(body.token, 100);
     const me = token.length >= 20 ? await sha(token) : "";
 
@@ -148,7 +148,6 @@ Deno.serve(async (req) => {
         const id = str(body.id, 48);
         const { data: row } = await sb.from("photos").select("*").eq("id", id).maybeSingle();
         if (!row) return fail("not-found");
-        if (!admin && !(me && row.owner_hash === me)) return fail("not-owner");   // 올린 사람(기기)만
         if (body.action === "delete_photo") {
           await sb.from("photos").delete().eq("id", id);
           await sb.storage.from(BUCKET).remove([row.full_path, row.thumb_path]);
