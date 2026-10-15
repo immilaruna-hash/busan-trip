@@ -41,6 +41,22 @@
     color:var(--muted);border-bottom:3px solid transparent;transition:.15s}
   .tab.on{color:var(--sky-d);border-color:var(--sky)}
 
+  /* 입장 코드 화면 */
+  .gate{position:fixed;inset:0;z-index:3000;background:linear-gradient(170deg,#f0f9ff,#fff 55%);display:flex;align-items:center;justify-content:center;padding:24px 16px}
+  .gate-in{width:100%;max-width:360px;text-align:center}
+  .gate-ico{font-size:44px;line-height:1.2}
+  .gate-in input::placeholder{letter-spacing:0;font-size:17px}
+  .gate-in h2{font-size:22px;margin:6px 0 4px}
+  .gate-in p{color:var(--muted);font-size:14px;margin:0 0 16px;line-height:1.5}
+  .gate-in input{width:100%;font-size:22px;text-align:center;letter-spacing:.2em;padding:12px;border:2px solid var(--sky-m);border-radius:14px;outline:none}
+  .gate-in input:focus{border-color:var(--sky)}
+  .gate-in .btn{width:100%;margin-top:10px;padding:13px;font-size:16px}
+  .gate-in .err{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px}
+  .who{position:absolute;right:0;top:0;border:1px solid var(--line);background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;color:var(--muted)}
+  .head-in{position:relative}
+  .leg small.src{font-size:11px;color:var(--muted);font-weight:600;margin-left:2px}
+  .ro-note{background:var(--grey);border-radius:10px;padding:8px 10px;font-size:13px;color:var(--muted);margin-bottom:10px}
+
   main{max-width:640px;margin:0 auto;padding:12px 16px calc(110px + env(safe-area-inset-bottom))}
   .hidden{display:none!important}
 
@@ -291,6 +307,7 @@
 <header>
   <div class="head-in">
     <div class="brand">둔촌고등학교 <b>B팀</b> · 10.12(월) – 10.14(수)</div>
+    <button class="who hidden" id="who" data-act="who"></button>
     <h1>부산 수학여행 🌊</h1>
     <nav class="tabs">
       <button class="tab on" data-tab="schedule">🗓️ 일정표</button>
@@ -308,7 +325,7 @@
       <div id="map"></div>
       <div class="map-tools"><button class="btn-s" data-act="locate" style="background:#fff">📍 내 위치</button></div>
     </section>
-    <p class="hint" id="map-note" style="margin:-4px 2px 10px">실제 지도 위에 그날의 이동 경로를 파란 선으로 그렸어요. 선 위의 🚌 시간은 차로 걸리는 시간이고, 번호 핀을 누르면 일정 시간과 사진 수가 나와요.</p>
+    <p class="hint" id="map-note" style="margin:-4px 2px 10px">실제 지도 위에 그날의 이동 경로를 파란 선으로 그렸어요. 선 위의 시간은 차로 걸리는 시간(🚗 그 시간대 교통 예측 · 🚌 교통 미반영)이고, 번호 핀을 누르면 일정 시간과 사진 수가 나와요.</p>
     <div id="map-me"></div>
     <div id="stops"></div>
   </div>
@@ -330,6 +347,14 @@
 </div>
 <div id="modal" class="modal hidden"><div class="sheet" id="sheet"></div></div>
 <div id="alarm" class="alarm hidden"><div class="alarm-in" id="alarm-in"></div></div>
+<div id="gate" class="gate hidden"><div class="gate-in">
+  <div class="gate-ico">🔐</div>
+  <h2>입장 코드</h2>
+  <p>우리 반 친구들만 볼 수 있는 사이트예요.<br>선생님이나 반장에게 받은 코드를 입력해 주세요.</p>
+  <input id="gate-code" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="코드 입력">
+  <button class="btn primary" id="gate-ok" type="button">입장하기</button>
+  <div class="err" id="gate-err"></div>
+</div></div>
 <div id="toast" style="opacity:0"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -466,22 +491,54 @@ function loadState() {
   return clone(DEFAULT_STATE);
 }
 /* ================= 공유 서버 (Supabase) =================
-   · 일정·집합 공지·사진을 서버에 저장해서 친구들 화면에 똑같이 보여요.
+   · 입장 코드가 있어야 일정·사진을 보고 쓸 수 있어요. 모든 읽기·쓰기는 서버 함수(trip-api)를 거쳐요.
+   · 데이터베이스 표는 브라우저에서 직접 건드릴 수 없어요(RLS). 서버 함수가 코드와 권한을 확인한 뒤에만 읽고 써요.
+   · 일정·집합 공지 수정은 관리자만, 사진 글 수정·삭제는 올린 사람(또는 관리자)만 할 수 있어요.
    · 아래 키는 브라우저에 넣어도 되는 공개용 Publishable key예요. (Secret 키는 절대 넣지 않기!)
    · 알림 설정과 스티커는 각자 기기에만 저장돼요. */
 const SB_URL = 'https://tmhsxgsviyzmqeoapdub.supabase.co';
 const SB_KEY = 'sb_publishable_kGFxBfUpmtwgXcLjD801UQ_vcze1B3Y';
 const sb = (() => { try { return window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null; } catch (e) { return null; } })();
-let stateStamp = '', pendingState = null, pushT = null;
+const AUTH_KEY = 'busan-trip-auth-v1', DEV_KEY = 'busan-trip-device-v1';
+let auth = null;   // { code, role: 'member' | 'admin' }
+try { auth = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) {}
+/* 이 기기만 아는 비밀 토큰 → 서버에는 해시만 저장돼서 '내가 올린 사진'을 구분해요 */
+let devToken = '';
+try { devToken = localStorage.getItem(DEV_KEY) || ''; } catch (e) {}
+if (devToken.length < 20) {
+  devToken = [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
+  try { localStorage.setItem(DEV_KEY, devToken); } catch (e) {}
+}
+const isAdmin = () => !sb || !!(auth && auth.role === 'admin');   // 서버 없이(이 기기에서만) 쓸 때는 모두 허용
+const canEditPhoto = p => !p.remote || p.mine || isAdmin();
+const saveAuth = () => { try { auth ? localStorage.setItem(AUTH_KEY, JSON.stringify(auth)) : localStorage.removeItem(AUTH_KEY); } catch (e) {} };
+const ERR = {
+  'bad-code': '입장 코드가 틀렸어요', locked: '코드를 너무 많이 틀렸어요. 10분 뒤에 다시 해 주세요',
+  'admin-only': '일정과 집합 공지는 관리자만 고칠 수 있어요', 'not-owner': '올린 사람만 고치거나 지울 수 있어요',
+  'not-found': '이미 지워진 사진이에요'
+};
+async function api(action, extra = {}, code) {
+  let res;
+  try { res = await sb.functions.invoke('trip-api', { body: { action, code: code ?? (auth && auth.code), token: devToken, ...extra } }); }
+  catch (e) { res = { error: e }; }
+  const { data, error } = res;
+  if (error || !data) throw new Error('서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요');
+  if (!data.ok) {
+    const e = new Error(ERR[data.error] || '서버에서 처리하지 못했어요'); e.code = data.error;
+    if (data.error === 'bad-code' && code == null) logout('입장 코드가 바뀌었어요. 새 코드를 입력해 주세요');
+    throw e;
+  }
+  return data;
+}
 
+let stateStamp = '', pendingState = null, pushT = null;
 function saveState() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
-  if (!sb) return;
+  if (!sb || !auth) return;
   clearTimeout(pushT);
   pushT = setTimeout(async () => {
-    const ts = new Date().toISOString(); stateStamp = ts;
-    const { error } = await sb.from('trip_state').upsert({ id: 'main', data: state, updated_at: ts });
-    if (error) { console.warn(error); toast('⚠️ 서버에 저장하지 못했어요. 인터넷 연결을 확인하고 다시 저장해 주세요'); }
+    try { const r = await api('save_state', { data: state }); stateStamp = r.updated_at; ping(); }
+    catch (e) { toast('⚠️ ' + e.message); }
   }, 250);
 }
 const busy = () => !$('#modal').classList.contains('hidden') || ED.mode;
@@ -494,61 +551,86 @@ function onRemoteState(data, ts) {
   meetRoute = ''; nowRoute = null;
   if (curTab === 'schedule') renderSchedule(); else if (curTab === 'map') renderMap(); else renderAlbum();
 }
-async function pullState() {
-  const { data, error } = await sb.from('trip_state').select('data,updated_at').eq('id', 'main').maybeSingle();
-  if (error) throw error;
-  if (data) onRemoteState(data.data, data.updated_at);
-  else saveState();   // 서버가 비어 있으면 이 기기의 일정으로 처음 채움
-}
-
-const pubUrl = path => sb.storage.from('photos').getPublicUrl(path).data.publicUrl;
 const rowToPhoto = r => ({ id: r.id, time: r.taken_at, src: r.time_src, place: r.place || '', caption: r.caption || '',
-  name: r.name || '', decorated: !!r.decorated, from: r.from_id, fullPath: r.full_path, thumbPath: r.thumb_path,
-  full: pubUrl(r.full_path), thumb: pubUrl(r.thumb_path), remote: true });
-async function pullPhotos() {
-  const { data, error } = await sb.from('photos').select('*').order('taken_at');
-  if (error) throw error;
-  photos = data.map(rowToPhoto);
+  name: r.name || '', decorated: !!r.decorated, from: r.from_id, full: r.full, thumb: r.thumb, mine: !!r.mine, remote: true });
+/* 서버에서 일정 + 사진 한꺼번에 받기 (사진 주소는 3일짜리 서명 주소) */
+async function pullAll() {
+  const r = await api('load');
+  if (auth && r.role && r.role !== auth.role) { auth.role = r.role; saveAuth(); showWho(); }
+  photos = (r.photos || []).filter(x => x.full && x.thumb).map(rowToPhoto);
+  if (r.state) onRemoteState(r.state, r.updated_at); else if (isAdmin()) saveState();
 }
-async function upFile(path, blob) {
-  const { error } = await sb.storage.from('photos').upload(path, blob, { contentType: blob.type || 'image/jpeg', cacheControl: '31536000' });
-  if (error && !/exist|duplicate/i.test(error.message || '')) throw error;   // 이미 올라간 파일이면 통과
-}
-/* 사진 저장: 서버가 있으면 서버에, 없으면 이 기기에 */
+/* 사진 저장: 서버가 발급한 1회용 업로드 주소로 올리고, 사진 정보는 서버 함수로 등록 */
 async function savePhoto(p) {
   if (!sb) { await PDB.put(p); return p; }
-  const fp = `${p.id}.jpg`, tp = `${p.id}_t.jpg`;
-  await upFile(fp, p.full); await upFile(tp, p.thumb);
-  const row = { id: p.id, full_path: fp, thumb_path: tp, taken_at: p.time, time_src: p.src, place: p.place || '',
-    caption: p.caption || '', name: p.name || '', decorated: !!p.decorated, from_id: p.from || null };
-  const { error } = await sb.from('photos').insert(row);
-  if (error && error.code !== '23505') throw error;   // 23505 = 이미 있음
-  return rowToPhoto(row);
+  const u = await api('upload_urls', { id: p.id });
+  const blobs = [p.full, p.thumb];
+  for (let i = 0; i < 2; i++) {
+    const { error } = await sb.storage.from('photos').uploadToSignedUrl(u.uploads[i].path, u.uploads[i].token, blobs[i], { contentType: blobs[i].type || 'image/jpeg' });
+    if (error && !/exist|duplicate/i.test(error.message || '')) throw error;   // 이미 올라간 파일이면 통과
+  }
+  const r = await api('add_photo', { photo: { id: p.id, taken_at: p.time, time_src: p.src, place: p.place || '', caption: p.caption || '',
+    name: p.name || '', decorated: !!p.decorated, from_id: p.from || null } });
+  ping();
+  return rowToPhoto(r.photo);
 }
 async function updatePhoto(p) {
   if (!p.remote) return PDB.put(p);
-  const { error } = await sb.from('photos').update({ place: p.place, caption: p.caption, taken_at: p.time, time_src: p.src }).eq('id', p.id);
-  if (error) throw error;
+  await api('update_photo', { id: p.id, photo: { place: p.place, caption: p.caption, taken_at: p.time, time_src: p.src } });
+  ping();
 }
 async function deletePhoto(p) {
   if (!p.remote) return PDB.del(p.id);
-  const { error } = await sb.from('photos').delete().eq('id', p.id);
-  if (error) throw error;
-  await sb.storage.from('photos').remove([p.fullPath, p.thumbPath]);
+  await api('delete_photo', { id: p.id });
+  ping();
 }
 function upsertLocal(p) { const i = photos.findIndex(x => x.id === p.id); if (i >= 0) photos[i] = p; else photos.push(p); }
-function onRemotePhoto(pl) {
-  if (pl.eventType === 'DELETE') { if (pl.old && pl.old.id) photos = photos.filter(x => x.id !== pl.old.id); }
-  else if (pl.new && pl.new.id) upsertLocal(rowToPhoto(pl.new));
-  if (curTab === 'album' && !busy()) renderAlbum();
-}
-let liveCh = null;
+/* 실시간: 누가 바꾸면 '바뀌었어요' 신호만 보내고, 받은 쪽이 서버에서 다시 받아 옴 (데이터는 신호에 안 실음) */
+let liveCh = null, pullT = null;
 function goLive() {
-  if (liveCh) return;
-  liveCh = sb.channel('busan-trip-live')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_state' }, pl => { if (pl.new && pl.new.id === 'main') onRemoteState(pl.new.data, pl.new.updated_at); })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'photos' }, onRemotePhoto)
+  if (liveCh || !sb) return;
+  liveCh = sb.channel('busan-trip-live', { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'changed' }, () => { clearTimeout(pullT); pullT = setTimeout(refresh, 400); })
     .subscribe();
+}
+function ping() { try { liveCh && liveCh.send({ type: 'broadcast', event: 'changed', payload: {} }); } catch (e) {} }
+async function refresh() {
+  if (!sb || !auth) return;
+  try { await pullAll(); if (curTab === 'album' && !busy()) renderAlbum(); } catch (e) { console.warn(e); }
+}
+
+/* ---------- 입장 코드 화면 ---------- */
+function showWho() {
+  const w = $('#who'); if (!w) return;
+  w.classList.toggle('hidden', !sb || !auth);
+  if (auth) w.textContent = auth.role === 'admin' ? '👑 관리자' : '🙂 친구';
+}
+function showGate(msg) {
+  $('#gate').classList.remove('hidden');
+  $('#gate-err').textContent = msg || '';
+  setTimeout(() => $('#gate-code').focus(), 50);
+}
+function logout(msg) { auth = null; saveAuth(); showWho(); showGate(msg); }
+async function tryJoin() {
+  const code = $('#gate-code').value.trim(), btn = $('#gate-ok');
+  if (!code) return ($('#gate-err').textContent = '코드를 입력해 주세요');
+  btn.disabled = true; btn.textContent = '확인 중…'; $('#gate-err').textContent = '';
+  try {
+    const r = await api('join', {}, code);
+    auth = { code, role: r.role }; saveAuth();
+    $('#gate').classList.add('hidden'); $('#gate-code').value = ''; showWho();
+    await startShared();
+    toast(r.role === 'admin' ? '👑 관리자로 들어왔어요. 일정을 고칠 수 있어요' : '입장했어요! 반가워요 👋');
+  } catch (e) { $('#gate-err').textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = '입장하기'; }
+}
+$('#gate-ok').addEventListener('click', tryJoin);
+$('#gate-code').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); tryJoin(); } });
+async function startShared() {
+  try { await pullAll(); }
+  catch (e) { if (e.code !== 'bad-code') setTimeout(() => toast('⚠️ ' + e.message), 800); }
+  goLive();
+  if (typeof curTab !== 'undefined') { if (curTab === 'album') renderAlbum(); else if (curTab === 'map') renderMap(); else renderSchedule(); }
 }
 /* 예전에 이 기기에만 저장했던 사진 → 공유 사진첩으로 옮기기 */
 let localOnly = [];
@@ -645,6 +727,34 @@ function getRoute(a, b, profile, needGeo) {
   inflight[key] = p;
   return p;
 }
+/* 그 시간대 교통을 반영한 예상 시간 (서버 → 카카오모빌리티 미래 운행 정보)
+   · 출발 시각 = 앞 일정이 끝나는 시각. 지난 날짜면 '같은 요일·같은 시각'의 다음 주 예측을 써요.
+   · 못 받아 오면 지금처럼 도로 경로 시간(교통 미반영)을 보여 줘요. */
+const ETA_KEY = 'busan-trip-eta-v1';
+let ETA = {};
+try { ETA = JSON.parse(localStorage.getItem(ETA_KEY) || '{}'); } catch (e) {}
+const etaTried = new Set();
+let etaOff = false, etaBusy = false;
+const ek = (key, dep) => key + '@' + dep;
+function etaOf(leg) { return leg.dep ? ETA[ek(leg.key, leg.dep)] : null; }
+async function fetchEta(list) {
+  if (!sb || !auth || etaOff || etaBusy) return;
+  const need = list.filter(l => l.dep && !ETA[ek(l.key, l.dep)] && !etaTried.has(ek(l.key, l.dep)));
+  if (!need.length) return;
+  etaBusy = true;
+  need.forEach(l => etaTried.add(ek(l.key, l.dep)));
+  try {
+    const r = await api('eta', { legs: need.slice(0, 40).map(l => ({ k: ek(l.key, l.dep), a: l.a, b: l.b, dep: l.dep })) });
+    if (r.nokey) { etaOff = true; return; }
+    let got = 0;
+    for (const [k, v] of Object.entries(r.eta || {})) if (v) { ETA[k] = v; got++; }
+    if (got) {
+      try { localStorage.setItem(ETA_KEY, JSON.stringify(ETA)); } catch (e) {}
+      if (!busy()) { if (curTab === 'schedule') renderSchedule(); else if (curTab === 'map') renderMap(); }
+    }
+  } catch (e) { console.warn('eta', e); }
+  finally { etaBusy = false; }
+}
 function routeText(r, gap) {
   if (!r) return '도로 경로를 불러오지 못했어요';
   let s = `<b>약 ${fmtDur(r.min * 60000)}</b> · ${r.km.toFixed(1)}km`;
@@ -661,20 +771,25 @@ function legsOf(items) {
     if (!a || !b || hav(a, b) < 0.2) continue;
     const key = rkey(a, b, 'car');
     LEGMETA[key] = { a, b };
-    legs.push({ key, a, b, from: prev, to: cur, gap: Math.round((cur.s - prev.e) / 60000) });
+    legs.push({ key, a, b, from: prev, to: cur, gap: Math.round((cur.s - prev.e) / 60000), dep: `${prev.date}T${prev.end}` });
   }
   return legs;
 }
 function legHTML(leg, cls, noLink) {
-  const r = RC[leg.key];
+  const r = RC[leg.key], e = etaOf(leg);
   const fromName = leg.from.mode === 'train' ? '부산역' : leg.from.place;
-  return `<div class="leg ${cls || ''} " data-k="${leg.key}" data-gap="${leg.gap}">
-    🚌 차로 <span class="lv">${r ? routeText(r, leg.gap) : '계산 중…'}</span>
+  if (leg.dep) LEGLIST.push(leg);
+  return `<div class="leg ${cls || ''} " data-k="${leg.key}" data-gap="${leg.gap}"${e ? ' data-eta="1"' : ''}>
+    ${e ? `🚗 그 시간대 차로 <span class="lv">${routeText(e, leg.gap)}</span><small class="src">교통 예측</small>`
+        : `🚌 차로 <span class="lv">${r ? routeText(r, leg.gap) : '계산 중…'}</span>${sb && auth ? '<small class="src">교통 미반영</small>' : ''}`}
     ${noLink ? '' : `<a href="${nBy('car', fromName, leg.a, leg.to.place, leg.b)}" ${NT}>네이버지도 길찾기 ↗</a>`}</div>`;
 }
+let LEGLIST = [];
 function fillLegs(root) {
+  const list = LEGLIST; LEGLIST = [];
+  fetchEta(list);
   root.querySelectorAll('[data-k]').forEach(el => {
-    const m = LEGMETA[el.dataset.k]; if (!m || RC[el.dataset.k]) return;
+    const m = LEGMETA[el.dataset.k]; if (!m || RC[el.dataset.k] || el.dataset.eta) return;
     getRoute(m.a, m.b, 'car').then(r => {
       const gap = el.dataset.gap !== undefined ? +el.dataset.gap : null;
       const lv = el.querySelector('.lv'); if (lv) lv.innerHTML = routeText(r, gap);
@@ -911,7 +1026,7 @@ function meetCard(n) {
   const lead = alertCfg.leads[0];
   const alAt = ok ? ` · ${hm(new Date(t - lead * 60000))}` : '';
   return `<section class="card meet">
-    <div class="row"><h2>🚩 집합 공지</h2><button class="btn-s" data-act="edit-meet">수정</button></div>
+    <div class="row"><h2>🚩 집합 공지</h2><button class="btn-s" data-act="edit-meet">${isAdmin() ? '수정' : '🔔 알림 설정'}</button></div>
     <div class="meet-place">${esc(m.place || '집합 장소 미정')}</div>
     <div class="meet-note">${m.note ? esc(m.note) : (ok ? `${mdw(t)} ${hm(t)}` : '시간 미정')}</div>
     <div class="meet-al">
@@ -945,7 +1060,7 @@ function renderSchedule() {
     if (di + 1 !== schedDay) return;
     html += `<section class="day" id="day-${di + 1}">
       <div class="day-head"><h2>${di + 1}일차<small>${mdw(at(d.date, '00:00'))}</small></h2>
-      <button class="add" data-act="add" data-day="${di}">＋ 일정 추가</button></div>
+      ${isAdmin() ? `<button class="add" data-act="add" data-day="${di}">＋ 일정 추가</button>` : ''}</div>
       ${d.items.length ? '' : '<div class="empty">이 날은 아직 일정이 없어요.<br>＋ 일정 추가로 넣어 보세요.</div>'}`;
     d.items.slice().sort((a, b) => a.start.localeCompare(b.start)).forEach(it => {
       const f = byId[it.id]; const st = f ? statusOf(f, n) : 'next';
@@ -961,7 +1076,7 @@ function renderSchedule() {
           ${it.note ? `<div class="nt">${esc(it.note)}</div>` : ''}
           ${(it.meetPlace || it.meetTime) ? `<span class="mt">🚩 집합 ${esc(it.meetPlace || '')} ${esc(it.meetTime || '')}</span>` : ''}
         </div>
-        <button class="ed" data-act="edit" data-day="${di}" data-id="${it.id}">수정</button>
+        ${isAdmin() ? `<button class="ed" data-act="edit" data-day="${di}" data-id="${it.id}">수정</button>` : ''}
       </div>`;
     });
     html += `</section>`;
@@ -1050,7 +1165,29 @@ function itemForm(di, id) {
   });
 }
 
+/* 관리자가 아닌 친구: 집합 공지는 못 고치고, 내 알림 설정만 바꿀 수 있음 */
+function alertForm() {
+  openModal(`<h3>🔔 집합 알림 설정</h3>
+    <p class="ro-note">집합 공지 내용은 관리자만 고칠 수 있어요. 알림 설정은 내 휴대폰에만 적용돼요.</p>
+    <form id="f">
+      <div class="two">
+        <label>집합 알림<select name="alertOn"><option value="1" ${alertCfg.on ? 'selected' : ''}>켜기</option><option value="0" ${alertCfg.on ? '' : 'selected'}>끄기</option></select></label>
+        <label>알림 시간 <small>· 집합 몇 분 전</small><input type="number" name="lead" min="1" max="180" step="1" inputmode="numeric" required value="${alertCfg.leads[0]}"></label>
+      </div>
+      <div class="actions"><span class="sp"></span>
+        <button type="button" class="btn ghost" data-act="close">취소</button>
+        <button type="button" class="btn primary" data-save>저장</button></div>
+    </form>`);
+  bindSave($('#f'), async e => {
+    const v = Object.fromEntries(new FormData(e.target));
+    const lead = cleanLead(v.lead);
+    if (!lead) { toast('알림 시간은 1~180분 사이로 적어 주세요'); return; }
+    await setAlert(v.alertOn === '1', lead);
+    closeModal(); renderSchedule(); toast('알림 설정을 저장했어요');
+  });
+}
 function meetForm() {
+  if (!isAdmin()) return alertForm();
   const m = state.meet || {};
   openModal(`<h3>🚩 집합 공지 수정</h3>
     <form id="f">
@@ -1273,7 +1410,7 @@ function renderMap() {
       const key = rkey(from, s.ll, 'car');
       LEGMETA[key] = { a: from, b: s.ll };
       const gap = Math.round((s.sDate - prev.eDate) / 60000);
-      list += legHTML({ key, a: from, b: s.ll, from: { place: prev.name }, to: { place: s.name }, gap }, prev.st === 'done' && s.st !== 'next' ? 'done' : '');
+      list += legHTML({ key, a: from, b: s.ll, from: { place: prev.name }, to: { place: s.name }, gap, dep: localInput(prev.eDate) }, prev.st === 'done' && s.st !== 'next' ? 'done' : '');
     }
     list += `<div class="stop ${s.st}" id="stop-${i}" data-act="fly" data-i="${i}">
       <div class="num">${i + 1}</div>
@@ -1310,6 +1447,7 @@ function renderMap() {
       mapMarkers.push(mk);
       if (i > 0) {
         const a = stops[i - 1].outLL || stops[i - 1].ll, b = s.ll;
+        const et = ETA[ek(rkey(a, b, 'car'), localInput(stops[i - 1].eDate))];
         getRoute(a, b, 'car', true).then(r => {
           if (token !== mapToken) return;
           const geo = r && r.geo, pts = geo || [a, b], dim = s.st === 'done';
@@ -1318,7 +1456,7 @@ function renderMap() {
           if (r) {   // 경로 가운데에 차로 걸리는 시간 표시
             const mid = pts.length > 2 ? pts[Math.floor(pts.length / 2)] : [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
             const tt = L.tooltip({ permanent: true, direction: 'center', className: 'tt-time' + (dim ? ' dim' : ''), interactive: false, pane: 'timePane' })
-              .setLatLng(mid).setContent(`🚌 ${fmtDur(r.min * 60000)}`).addTo(mapLayer);
+              .setLatLng(mid).setContent(et ? `🚗 ${fmtDur(et.min * 60000)}` : `🚌 ${fmtDur(r.min * 60000)}`).addTo(mapLayer);
             timeLabels.push({ tt, pts, i });
             timeLabels.sort((x, y) => x.i - y.i);
             declutterTimes();
@@ -1594,7 +1732,7 @@ function renderAlbum() {
   }
 
   let html = `<section class="card">
-    <p class="hint" style="margin:0">사진 ${photos.length}장 · ${sb ? '친구들과 같이 보는 사진첩이에요. ' : ''}찍힌 시간을 읽어서 그때 일정 장소로 위치를 자동 입력해요</p>
+    <p class="hint" style="margin:0">사진 ${photos.length}장 · ${sb ? '우리 반만 보는 사진첩이에요. 내가 올린 사진만 고치거나 지울 수 있어요. ' : ''}찍힌 시간을 읽어서 그때 일정 장소로 위치를 자동 입력해요</p>
     <div class="album-actions">
       <button class="btn primary sm" data-act="upload">📁 앨범에서 여러 장 올리기</button>
       <button class="btn ghost sm" data-act="camera">📷 바로 찍기</button>
@@ -1646,38 +1784,40 @@ function viewPhoto(id) {
   const m = matchPhoto(d);
   const places = [...new Set(flat().map(i => i.place))];
   const ll = m.item ? startLL(m.item) : null;
+  const own = canEditPhoto(p), dis = own ? '' : 'disabled';
   openModal(`<img class="big" src="${urlOf(p, 'full')}" alt="">
     ${p.caption ? `<div class="cap">${esc(p.caption)}</div>` : ''}
+    ${own ? '' : '<p class="ro-note">✋ 친구가 올린 사진이에요. 글·시간·위치 수정과 삭제는 올린 사람(또는 관리자)만 할 수 있어요. 꾸미기는 내 사진으로 새로 저장돼요.</p>'}
     <button class="btn primary" id="pdeco" style="width:100%;margin-bottom:12px">🎨 꾸미기 (스티커 · 글자 · 펜)</button>
     <div class="auto">🤖 자동 위치: <b>${esc(m.place)}</b><br><small>${esc(m.how)}</small>
       ${ll && m.item.mode !== 'train' ? `<br><a href="${nMap(m.item.place, ll)}" ${NT}>네이버지도에서 보기 ↗</a>` : ''}</div>
     <form id="pf">
-      <label>글<textarea name="caption" rows="2" maxlength="300" placeholder="사진에 대한 글 (선택)">${esc(p.caption || '')}</textarea></label>
+      <label>글<textarea name="caption" rows="2" maxlength="300" ${dis} placeholder="사진에 대한 글 (선택)">${esc(p.caption || '')}</textarea></label>
       <label>찍은 시간 <small>· ${p.src === 'exif' ? '사진 정보(EXIF)에서 읽었어요' : (p.src === 'manual' ? '직접 고친 시간이에요' : '사진에 촬영 정보가 없어 파일 시간을 썼어요')}</small>
-        <input type="datetime-local" name="time" value="${localInput(d)}"></label>
+        <input type="datetime-local" name="time" ${dis} value="${localInput(d)}"></label>
       <label>위치 <small>· 비워 두면 일정 기준으로 자동 입력</small>
-        <input name="place" list="places" value="${esc(p.place)}" placeholder="${esc(m.place)}"></label>
+        <input name="place" list="places" ${dis} value="${esc(p.place)}" placeholder="${esc(m.place)}"></label>
       <datalist id="places">${places.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <div class="actions">
-        <button type="button" class="btn danger" id="pdel">삭제</button>
-        <a class="btn ghost" href="${p.remote ? p.full + '?download=' + encodeURIComponent('busan-' + localInput(d).replace(/[:T-]/g, '') + '.jpg') : urlOf(p, 'full')}" download="busan-${localInput(d).replace(/[:T-]/g, '')}.jpg">다운로드</a>
+        ${own ? '<button type="button" class="btn danger" id="pdel">삭제</button>' : ''}
+        <a class="btn ghost" href="${p.remote ? p.full + (p.full.includes('?') ? '&' : '?') + 'download=' + encodeURIComponent('busan-' + localInput(d).replace(/[:T-]/g, '') + '.jpg') : urlOf(p, 'full')}" download="busan-${localInput(d).replace(/[:T-]/g, '')}.jpg">다운로드</a>
         <span class="sp"></span>
-        <button type="button" class="btn primary" data-save>저장</button>
+        ${own ? '<button type="button" class="btn primary" data-save>저장</button>' : ''}
       </div>
     </form>`);
-  bindSave($('#pf'), async e => {
+  if (own) bindSave($('#pf'), async e => {
     e.preventDefault();
     const v = Object.fromEntries(new FormData(e.target));
     if (v.time && v.time !== localInput(d)) { const nd = new Date(v.time); if (!isNaN(nd)) { p.src = 'manual'; p.time = nd.toISOString(); } }
     p.place = v.place.trim();
     p.caption = (v.caption || '').trim();
-    try { await updatePhoto(p); } catch (er) { console.warn(er); return toast('⚠️ 저장하지 못했어요. 인터넷 연결을 확인해 주세요'); }
+    try { await updatePhoto(p); } catch (er) { console.warn(er); return toast('⚠️ ' + (er.code ? er.message : '저장하지 못했어요. 인터넷 연결을 확인해 주세요')); }
     closeModal(); renderAlbum(); toast('사진 정보를 저장했어요');
   });
   $('#pdeco').addEventListener('click', () => { closeModal(); openDecorate(p); });
-  $('#pdel').addEventListener('click', async () => {
+  if (own) $('#pdel').addEventListener('click', async () => {
     if (!(await askConfirm('이 사진을 삭제할까요?', '삭제', true))) return;
-    try { await deletePhoto(p); } catch (er) { console.warn(er); return toast('⚠️ 삭제하지 못했어요. 인터넷 연결을 확인해 주세요'); }
+    try { await deletePhoto(p); } catch (er) { console.warn(er); return toast('⚠️ ' + (er.code ? er.message : '삭제하지 못했어요. 인터넷 연결을 확인해 주세요')); }
     photos = photos.filter(x => x.id !== p.id); dropUrls(p.id);
     closeModal(); renderAlbum(); toast('삭제했어요');
   });
@@ -2138,8 +2278,10 @@ document.addEventListener('click', e => {
   if (e.target.closest('a')) return;
   const b = e.target.closest('[data-act]'); if (!b || b.closest('#modal')) return;
   const a = b.dataset.act;
+  if ((a === 'edit' || a === 'add') && !isAdmin()) return toast(ERR['admin-only']);
   if (a === 'edit') itemForm(+b.dataset.day, b.dataset.id);
   else if (a === 'add') itemForm(+b.dataset.day, null);
+  else if (a === 'who') askConfirm(`지금은 ${auth && auth.role === 'admin' ? '👑 관리자' : '🙂 친구'}로 들어와 있어요.\n다른 코드로 다시 들어갈까요?`, '다시 입력').then(ok => { if (ok) logout(); });
   else if (a === 'edit-meet') meetForm();
   else if (a === 'route-me') routeMe(b.dataset.t);
   else if (a === 'map-day') { mapDay = +b.dataset.day; $('#map-me').innerHTML = ''; renderMap(); }
@@ -2173,7 +2315,7 @@ setInterval(checkAlerts, 15000);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   checkAlerts();
-  if (sb) Promise.all([pullState(), pullPhotos()]).then(() => { if (curTab === 'album' && !busy()) renderAlbum(); }).catch(e => console.warn(e));
+  if (sb && auth) refresh();
 });
 
 (async function init() {
@@ -2181,9 +2323,8 @@ document.addEventListener('visibilitychange', () => {
   stickers = await PDB.all('stickers');
   if (sb) {
     localOnly = await PDB.all();
-    try { await Promise.all([pullState(), pullPhotos()]); }
-    catch (e) { console.warn(e); setTimeout(() => toast('⚠️ 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요'), 800); }
-    goLive();
+    showWho();
+    if (auth) startShared(); else showGate();   // 입장 코드가 없으면 입장 화면부터
   } else photos = await PDB.all();
   setTimeout(checkAlerts, 1500);
   const h = location.hash.slice(1);
